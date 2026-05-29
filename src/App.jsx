@@ -5,11 +5,11 @@ import { CartProvider } from './context/CartContext';
 import { ConfigProvider } from './context/ConfigContext'; // 1. On importe le nouveau configurateur
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
-import Home from './pages/Home';
-import Catalog from './pages/Catalog';
+import Home from './pages/home';
+import Catalog from './pages/catalog';
 import ProductDetail from './pages/ProductDetail';
-import Contact from './pages/Contact';
-import Cart from './pages/Cart';
+import Contact from './pages/contact';
+import Cart from './pages/cart';
 import CheckoutSuccess from './pages/CheckoutSuccess';
 import Legal from './pages/Legal';
 import AdminDashboard from './pages/admin/AdminDashboard';
