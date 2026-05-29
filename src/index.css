@@ -1,0 +1,128 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@300;400;500&display=swap');
+
+:root {
+  --white: #FFFCF8;
+  --bg: #FDFAF6;
+  --bg-chaux: #E5D9C8;
+  --bg-soft: #F0E8DC;
+  --panel: #E8DCC8;
+  --bordeaux: #620017;
+  --chocolate: #56352c;
+  --muted: #8A6B5C;
+  --muted-light: #A89488;
+  --border: #D4C4B0;
+  --accent: #620017;
+  --chaux-texture: url(/textures/beige-chaux.png);
+
+  --text: var(--muted);
+  --text-h: var(--chocolate);
+  --sans: 'DM Sans', sans-serif;
+  --heading: 'Playfair Display', serif;
+
+  font-family: 'DM Sans', sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--chocolate);
+  color-scheme: light;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  color: var(--chocolate);
+  min-height: 100vh;
+  background-color: var(--bg-chaux);
+  background-image:
+    linear-gradient(rgba(253, 250, 246, 0.88), rgba(253, 250, 246, 0.9)),
+    var(--chaux-texture);
+  background-size: cover;
+  background-attachment: fixed;
+  background-position: center;
+}
+
+#root {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  text-align: left;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+}
+
+.mj-chaux {
+  background-color: var(--bg-chaux);
+  background-image:
+    linear-gradient(rgba(253, 250, 246, 0.82), rgba(237, 228, 216, 0.86)),
+    var(--chaux-texture);
+  background-size: cover;
+  background-position: center;
+}
+
+.mj-bestsellers-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: stretch;
+  gap: clamp(16px, 2vw, 24px);
+  width: 100%;
+  margin: 0 auto;
+}
+
+.mj-bestsellers-grid > * {
+  flex: 0 1 220px;
+  width: 220px;
+  max-width: calc(50% - 8px);
+}
+
+@media (max-width: 520px) {
+  .mj-bestsellers-grid > * {
+    flex: 1 1 calc(50% - 8px);
+    width: auto;
+    min-width: 140px;
+  }
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Playfair Display', serif;
+  font-weight: 400;
+  color: var(--chocolate);
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+input,
+textarea,
+select {
+  background: var(--white) !important;
+  color: var(--chocolate) !important;
+  -webkit-text-fill-color: var(--chocolate) !important;
+  border-color: var(--border) !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted-light) !important;
+  opacity: 1;
+}
+
+h1, h2 {
+  font-size: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+}

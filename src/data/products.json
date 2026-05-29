@@ -1,0 +1,68 @@
+[
+  {
+    "id": "1",
+    "name": "Bague Jasmine",
+    "price": 12.50,
+    "shippingCost": 0,
+    "type": "bague",
+    "collection": "Capsule",
+    "inStock": false,
+    "description": "Une magnifique bague de notre collection capsule.",
+    "image": "https://via.placeholder.com/300"
+  },
+  {
+    "id": "2",
+    "name": "Bracelet doré Camille",
+    "price": 18.00,
+    "shippingCost": 0,
+    "type": "bracelet",
+    "collection": "Capsule",
+    "inStock": true,
+    "description": "Bracelet élégant ajustable, plaqué or.",
+    "image": "https://via.placeholder.com/300"
+  },
+  {
+    "id": "3",
+    "name": "Collier Agate Raffiné",
+    "price": 25.00,
+    "shippingCost": 0,
+    "type": "collier",
+    "collection": "Agate",
+    "inStock": true,
+    "description": "Collier avec véritable pierre fine d'Agate.",
+    "image": "https://via.placeholder.com/300"
+  },
+  {
+    "id": "4",
+    "name": "Boucles d'oreilles Agate",
+    "price": 15.00,
+    "shippingCost": 0,
+    "type": "boucles",
+    "collection": "Agate",
+    "inStock": false,
+    "description": "Boucles d'oreilles pendantes assorties à la collection Agate.",
+    "image": "https://via.placeholder.com/300"
+  },
+  {
+    "id": "5",
+    "name": "Bague Agate Noire",
+    "price": 19.50,
+    "shippingCost": 0,
+    "type": "bague",
+    "collection": "Agate",
+    "inStock": true,
+    "description": "Bague ajustable sertie d'une agate noire.",
+    "image": "https://via.placeholder.com/300"
+  },
+  {
+    "id": "6",
+    "name": "Collier Chaîne Fleur",
+    "price": 22.00,
+    "shippingCost": 0,
+    "type": "collier",
+    "collection": "Capsule",
+    "inStock": true,
+    "description": "Un collier discret et floral pour le quotidien.",
+    "image": "https://via.placeholder.com/300"
+  }
+]
