@@ -8,6 +8,7 @@ import {
   syncPaidSessionsFromStripe,
   buildCustomersFromOrders,
 } from './stripeOrders.js';
+import { sendOrderStatusNotification, sendContactFormEmail } from './emailService.js';
 
 const secretKey = process.env.STRIPE_SECRET_KEY;
 if (!secretKey) {
@@ -205,17 +206,48 @@ app.post('/api/admin/sync-stripe', requireAdmin, async (_req, res) => {
 app.patch('/api/admin/orders/:id', requireAdmin, async (req, res) => {
   try {
     const { fulfillmentStatus } = req.body || {};
-    if (!['En préparation', 'Expédié'].includes(fulfillmentStatus)) {
+    if (!['pending', 'preparing', 'shipped', 'delivered'].includes(fulfillmentStatus)) {
       return res.status(400).json({ error: 'Statut invalide' });
     }
     const updated = await updateOrderFulfillment(req.params.id, fulfillmentStatus);
     if (!updated) {
       return res.status(404).json({ error: 'Commande introuvable' });
     }
+    // Envoyer un email de notification au client
+    await sendOrderStatusNotification(updated, fulfillmentStatus);
     res.json({ order: updated });
   } catch (err) {
     console.error('[admin/patch order]', err);
     res.status(500).json({ error: 'Mise à jour impossible' });
+  }
+});
+
+// API Contact - envoyer un email
+app.post('/api/contact/send', async (req, res) => {
+  try {
+    const { name, email, phone, message } = req.body || {};
+    
+    // Validation
+    if (!name || !email || !message) {
+      return res.status(400).json({ error: 'Tous les champs requis sont manquants' });
+    }
+
+    // Vérifier le format email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Email invalide' });
+    }
+
+    // Envoyer l'email
+    const sent = await sendContactFormEmail({ name, email, phone, message });
+    if (!sent) {
+      return res.status(500).json({ error: 'Impossible d\'envoyer le message' });
+    }
+
+    res.json({ ok: true, message: 'Email envoyé avec succès' });
+  } catch (err) {
+    console.error('[contact]', err);
+    res.status(500).json({ error: 'Une erreur est survenue' });
   }
 });
 

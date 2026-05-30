@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import PageMeta from '../components/PageMeta';
 import { useConfig } from '../context/ConfigContext';
 
-const FORMSPREE_ID = import.meta.env.VITE_FORMSPREE_ID;
 
 const inputBase = {
   width: '100%',
@@ -57,7 +56,7 @@ export default function Contact() {
 
     try {
       if (FORMSPREE_ID) {
-        const res = await fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
+        const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/contact/send`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
           body: JSON.stringify({
@@ -65,7 +64,6 @@ export default function Contact() {
             email: formData.email,
             phone: formData.phone || undefined,
             message: formData.message,
-            _subject: 'Contact — Maison Julie',
           }),
         });
         if (!res.ok) {
@@ -73,15 +71,20 @@ export default function Contact() {
           throw new Error(data.error || 'Envoi impossible. Réessayez plus tard.');
         }
       } else {
-        const body = [
-          `Nom : ${formData.name}`,
-          `Email : ${formData.email}`,
-          formData.phone ? `Téléphone : ${formData.phone}` : '',
-          '',
-          formData.message,
-        ].filter(Boolean).join('\n');
-        const subject = encodeURIComponent('Contact — Maison Julie');
-        window.location.href = `mailto:${contactEmail}?subject=${subject}&body=${encodeURIComponent(body)}`;
+        const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/contact/send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone || undefined,
+            message: formData.message,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'Envoi impossible. Réessayez plus tard.');
+        }
       }
 
       setSubmitted(true);
@@ -162,12 +165,6 @@ export default function Contact() {
             </div>
           )}
 
-          {!FORMSPREE_ID && (
-            <p style={{ fontSize: '13px', color: '#8A6B5C', marginBottom: '24px', lineHeight: 1.6 }}>
-              Le formulaire ouvrira votre messagerie. Pour un envoi direct depuis le site, configurez{' '}
-              <code style={{ fontSize: '12px' }}>VITE_FORMSPREE_ID</code> (voir <code>.env.example</code>).
-            </p>
-          )}
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '36px' }}>
             <Field label="Nom complet *">

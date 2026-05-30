@@ -442,11 +442,14 @@ export default function AdminDashboard() {
   };
 
   const toggleOrderStatus = async (order) => {
-    const next = order.fulfillmentStatus === 'En préparation' ? 'Expédié' : 'En préparation';
+    const statusSequence = ['pending', 'preparing', 'shipped', 'delivered'];
+    const currentIdx = statusSequence.indexOf(order.fulfillmentStatus || 'pending');
+    const next = statusSequence[(currentIdx + 1) % statusSequence.length];
     try {
       const { order: updated } = await updateOrderFulfillment(order.id, next);
       setOrders((prev) => prev.map((o) => (o.id === order.id ? updated : o)));
-      flash(`✓ Commande ${updated.shortId || updated.id} : ${next}`);
+      const labels = { pending: 'En attente', preparing: 'En préparation', shipped: 'Expédié', delivered: 'Livré' };
+      flash(`✓ Commande ${updated.shortId || updated.id} : ${labels[next]}`);
     } catch (err) {
       alert(err.message || 'Mise à jour impossible');
     }
@@ -709,11 +712,11 @@ export default function AdminDashboard() {
                       </td>
                       <td style={{ padding: '18px' }}>
                         <span style={{
-                          background: o.fulfillmentStatus === 'Expédié' ? '#E3EDDE' : '#F7F0DB',
-                          color: o.fulfillmentStatus === 'Expédié' ? '#447334' : '#A3701A',
+                          background: ['shipped', 'delivered'].includes(o.fulfillmentStatus) ? '#E3EDDE' : '#F7F0DB',
+                          color: ['shipped', 'delivered'].includes(o.fulfillmentStatus) ? '#447334' : '#A3701A',
                           padding: '4px 10px', fontSize: '11px', letterSpacing: '0.5px', textTransform: 'uppercase', fontWeight: 500,
                         }}>
-                          {o.fulfillmentStatus || 'En préparation'}
+                          {({ pending: '⏳ En attente', preparing: '📦 En préparation', shipped: '🚚 Expédié', delivered: '✅ Livré' })[o.fulfillmentStatus] || '—'}
                         </span>
                       </td>
                       <td style={{ padding: '18px', textAlign: 'right' }}>
@@ -724,7 +727,7 @@ export default function AdminDashboard() {
                           onMouseEnter={(e) => { e.currentTarget.style.background = '#620017'; }}
                           onMouseLeave={(e) => { e.currentTarget.style.background = '#56352c'; }}
                         >
-                          {o.fulfillmentStatus === 'En préparation' ? 'Expédier' : 'Remettre en prépa'}
+                          Changer le statut
                         </button>
                       </td>
                     </tr>
