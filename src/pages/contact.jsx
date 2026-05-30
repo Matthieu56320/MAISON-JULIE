@@ -55,36 +55,19 @@ export default function Contact() {
     setSending(true);
 
     try {
-      if (FORMSPREE_ID) {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/contact/send`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({
-            name: formData.name,
-            email: formData.email,
-            phone: formData.phone || undefined,
-            message: formData.message,
-          }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || 'Envoi impossible. Réessayez plus tard.');
-        }
-      } else {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/contact/send`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({
-            name: formData.name,
-            email: formData.email,
-            phone: formData.phone || undefined,
-            message: formData.message,
-          }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || 'Envoi impossible. Réessayez plus tard.');
-        }
+      const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/contact/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone || undefined,
+          message: formData.message,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Envoi impossible. Réessayez plus tard.');
       }
 
       setSubmitted(true);
