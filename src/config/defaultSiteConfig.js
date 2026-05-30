@@ -66,7 +66,7 @@ export const defaultSiteConfig = {
   footer: {
     brandName: 'Maison Julie',
     tagline: 'Bijoux & accessoires — élégance au quotidien.',
-    email: 'contact@maison-julie.fr',
+    email: 'julieberthier9@gmail.com',
     address: 'France — livraison offerte',
     hours: 'Lundi – Vendredi : 9h – 18h\nSamedi : 10h – 13h\nDimanche : fermé',
     instagramUrl: 'https://www.instagram.com/',
