@@ -23,6 +23,9 @@ const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY || 'admin123';
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
+app.use(cors({ origin: CLIENT_URL }));
+app.use(express.json({ limit: '1mb' }));
+
 function requireAdmin(req, res, next) {
   const key = req.headers['x-admin-key'];
   if (!key || key !== ADMIN_API_KEY) {
@@ -114,9 +117,6 @@ app.post(
     res.json({ received: true });
   },
 );
-
-app.use(cors({ origin: CLIENT_URL }));
-app.use(express.json({ limit: '1mb' }));
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });

@@ -1,11 +1,24 @@
-import React, { createContext, useState, useContext } from 'react';
+import React, { createContext, useState, useContext, useEffect } from 'react';
 
 // Création du contexte
 const CartContext = createContext();
 
 // Fournisseur du contexte qui va envelopper toute l'application
 export function CartProvider({ children }) {
-  const [cart, setCart] = useState([]);
+  const [cart, setCart] = useState(() => {
+    // Charger le panier depuis localStorage au premier rendu
+    try {
+      const saved = localStorage.getItem('mj_cart');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Sauvegarder le panier dans localStorage à chaque changement
+  useEffect(() => {
+    localStorage.setItem('mj_cart', JSON.stringify(cart));
+  }, [cart]);
 
   // 1. Ajouter un produit au panier
   const addToCart = (product) => {
@@ -38,7 +51,10 @@ export function CartProvider({ children }) {
   };
 
   // 3. Vider complètement le panier (utile après une commande)
-  const clearCart = () => setCart([]);
+  const clearCart = () => {
+    setCart([]);
+    localStorage.removeItem('mj_cart');
+  };
 
   // 4. Calculer le nombre total d'articles dans le panier (pour la Navbar)
   const totalItems = cart.reduce((total, item) => total + item.quantity, 0);
