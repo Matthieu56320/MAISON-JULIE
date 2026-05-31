@@ -55,7 +55,11 @@ export default function Contact() {
     setSending(true);
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/contact/send`, {
+      const apiUrl = `${import.meta.env.VITE_API_URL || ''}/api/contact/send`;
+      console.log('[contact] Envoi à:', apiUrl);
+      console.log('[contact] Données:', { name: formData.name, email: formData.email });
+      
+      const res = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({
@@ -65,8 +69,12 @@ export default function Contact() {
           message: formData.message,
         }),
       });
+      
+      console.log('[contact] Response status:', res.status);
+      
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        console.log('[contact] Erreur:', data);
         throw new Error(data.error || 'Envoi impossible. Réessayez plus tard.');
       }
 

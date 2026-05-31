@@ -1,7 +1,11 @@
 import { apiUrl } from './apiBase';
 
 export async function createCheckoutSession(cartItems) {
-  const res = await fetch(apiUrl('/api/create-checkout-session'), {
+  const url = apiUrl('/api/create-checkout-session');
+  console.log('[createCheckoutSession] URL:', url);
+  console.log('[createCheckoutSession] Items:', cartItems.length);
+  
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -17,7 +21,9 @@ export async function createCheckoutSession(cartItems) {
     }),
   });
 
+  console.log('[createCheckoutSession] Response status:', res.status);
   const data = await res.json().catch(() => ({}));
+  console.log('[createCheckoutSession] Response:', data);
   if (!res.ok) {
     throw new Error(data.error || 'Erreur lors de la préparation du paiement');
   }

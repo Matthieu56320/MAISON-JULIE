@@ -26,6 +26,10 @@ const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 app.use(cors({ origin: CLIENT_URL }));
 app.use(express.json({ limit: '1mb' }));
 
+console.log('[SERVER] Démarrage avec CLIENT_URL:', CLIENT_URL);
+console.log('[SERVER] GMAIL_USER:', process.env.GMAIL_USER ? '✓ configuré' : '✗ MANQUANT');
+console.log('[SERVER] STRIPE_SECRET_KEY:', secretKey ? '✓ configuré' : '✗ MANQUANT');
+
 function requireAdmin(req, res, next) {
   const key = req.headers['x-admin-key'];
   if (!key || key !== ADMIN_API_KEY) {
@@ -140,8 +144,11 @@ app.post('/api/record-order', async (req, res) => {
 });
 
 app.post('/api/create-checkout-session', async (req, res) => {
+  console.log('[POST /api/create-checkout-session] Reçu');
+  console.log('[POST /api/create-checkout-session] Body:', JSON.stringify(req.body).substring(0, 200));
   try {
     const items = req.body?.items || [];
+    console.log('[POST /api/create-checkout-session] Items count:', items.length);
     const line_items = buildLineItems(items);
 
     const session = await stripe.checkout.sessions.create({
@@ -224,6 +231,8 @@ app.patch('/api/admin/orders/:id', requireAdmin, async (req, res) => {
 
 // API Contact - envoyer un email
 app.post('/api/contact/send', async (req, res) => {
+  console.log('[POST /api/contact/send] Reçu');
+  console.log('[POST /api/contact/send] Body:', JSON.stringify(req.body).substring(0, 200));
   try {
     const { name, email, phone, message } = req.body || {};
     

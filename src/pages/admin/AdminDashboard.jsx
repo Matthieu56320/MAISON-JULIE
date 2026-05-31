@@ -356,11 +356,16 @@ export default function AdminDashboard() {
     setOrdersLoading(true);
     setOrdersError('');
     try {
+      console.log('[AdminDashboard] Chargement des commandes...');
       const { orders: list } = await fetchAdminOrders();
       const { customers } = await fetchAdminCustomers();
-      setOrders(list);
-      setRegisteredClients(customers);
+      console.log('[AdminDashboard] Commandes reçues:', list?.length || 0);
+      console.log('[AdminDashboard] Clients reçus:', customers?.length || 0);
+      console.log('[AdminDashboard] Structure commande:', list?.[0]);
+      setOrders(list || []);
+      setRegisteredClients(customers || []);
     } catch (err) {
+      console.error('[AdminDashboard] Erreur:', err);
       setOrdersError(err.message || 'Impossible de charger les commandes Stripe.');
     } finally {
       setOrdersLoading(false);
@@ -513,9 +518,12 @@ export default function AdminDashboard() {
   }
 
   // ─── TABLEAU DE BORD ───
-  const paidOrders = orders.filter((o) => o.paymentStatus === 'paid');
+  const paidOrders = orders && Array.isArray(orders) ? orders.filter((o) => o.paymentStatus === 'paid') : [];
   const totalSales = paidOrders.reduce((s, o) => s + (o.total || 0), 0);
   const inStockCount = products.filter(p => p.inStock).length;
+
+  console.log('[AdminDashboard render] orders type:', typeof orders, 'isArray:', Array.isArray(orders));
+  console.log('[AdminDashboard render] paidOrders:', paidOrders.length);
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", background: '#FFFCF8', minHeight: '100vh' }}>
