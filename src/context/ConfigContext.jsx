@@ -5,6 +5,8 @@ import {
   newUniversCard,
   newEngagementItem,
 } from '../config/defaultSiteConfig';
+import { apiUrl } from '../api/apiBase';
+import { saveAdminSiteConfig } from '../api/adminApi';
 
 const STORAGE_KEY = 'maison-julie-site-config';
 
@@ -46,6 +48,29 @@ function saveConfig(config) {
   }
 }
 
+async function loadRemoteConfig() {
+  try {
+    const res = await fetch(apiUrl('/api/site-config'));
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data || typeof data !== 'object') return null;
+    return mergeSiteConfig(data);
+  } catch {
+    return null;
+  }
+}
+
+async function persistConfigRemotely(config) {
+  if (typeof window === 'undefined') return;
+  const adminKey = sessionStorage.getItem('mj_admin_key');
+  if (!adminKey) return;
+  try {
+    await saveAdminSiteConfig(config);
+  } catch (err) {
+    console.warn('[ConfigContext] Échec enregistrement serveur :', err.message || err);
+  }
+}
+
 const stored = typeof window !== 'undefined' ? loadStoredConfig() : null;
 
 const ConfigContext = createContext(null);
@@ -56,14 +81,24 @@ export function ConfigProvider({ children }) {
 
   useEffect(() => {
     if (!hydrated) {
-      const saved = loadStoredConfig();
-      if (saved) setSiteConfig(saved);
-      setHydrated(true);
+      (async () => {
+        const remote = await loadRemoteConfig();
+        if (remote) {
+          setSiteConfig(remote);
+        } else {
+          const saved = loadStoredConfig();
+          if (saved) setSiteConfig(saved);
+        }
+        setHydrated(true);
+      })();
     }
   }, [hydrated]);
 
   useEffect(() => {
-    if (hydrated) saveConfig(siteConfig);
+    if (hydrated) {
+      saveConfig(siteConfig);
+      persistConfigRemotely(siteConfig);
+    }
   }, [siteConfig, hydrated]);
 
   const updateConfig = useCallback((partial) => {
@@ -145,8 +180,14 @@ export function ConfigProvider({ children }) {
   }, []);
 
   const resetSiteConfig = useCallback(() => {
-    setSiteConfig({ ...defaultSiteConfig });
+    const resetConfig = { ...defaultSiteConfig };
+    setSiteConfig(resetConfig);
     localStorage.removeItem(STORAGE_KEY);
+    if (typeof window !== 'undefined' && sessionStorage.getItem('mj_admin_key')) {
+      saveAdminSiteConfig(resetConfig).catch((err) => {
+        console.warn('[ConfigContext] Échec reset serveur :', err.message || err);
+      });
+    }
   }, []);
 
   return (

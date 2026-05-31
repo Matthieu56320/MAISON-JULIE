@@ -53,6 +53,20 @@ export function updateOrderFulfillment(orderId, fulfillmentStatus) {
   });
 }
 
+export function saveAdminCatalog(catalog) {
+  return adminFetch('/api/admin/catalog', {
+    method: 'POST',
+    body: JSON.stringify(catalog),
+  });
+}
+
+export function saveAdminSiteConfig(config) {
+  return adminFetch('/api/admin/site-config', {
+    method: 'POST',
+    body: JSON.stringify(config),
+  });
+}
+
 export async function checkApiHealth() {
   const res = await fetch(apiUrl('/api/health'));
   return res.ok;

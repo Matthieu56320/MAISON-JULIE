@@ -1,4 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import { apiUrl } from '../api/apiBase';
+import { saveAdminCatalog } from '../api/adminApi';
 
 const STORAGE_KEY = 'maison-julie-catalog';
 
@@ -138,7 +140,7 @@ function loadStoredCatalog() {
   }
 }
 
-function saveCatalog(products, collections) {
+function persistCatalogLocally(products, collections) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       products,
@@ -147,6 +149,35 @@ function saveCatalog(products, collections) {
     }));
   } catch {
     // quota dépassé ou navigation privée
+  }
+}
+
+async function loadRemoteCatalog() {
+  try {
+    const res = await fetch(apiUrl('/api/catalog'));
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data || !Array.isArray(data.products) || !Array.isArray(data.collections)) return null;
+    return {
+      products: data.products.map((p) => ({
+        ...p,
+        shippingCost: typeof p.shippingCost === 'number' ? p.shippingCost : 0,
+        showShippingPrice: typeof p.showShippingPrice === 'boolean' ? p.showShippingPrice : true,
+      })),
+      collections: data.collections,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function persistCatalogRemotely(products, collections) {
+  const adminKey = sessionStorage.getItem('mj_admin_key');
+  if (!adminKey) return;
+  try {
+    await saveAdminCatalog({ products, collections });
+  } catch (err) {
+    console.warn('[ProductsContext] Échec enregistrement serveur:', err.message || err);
   }
 }
 
@@ -161,18 +192,27 @@ export function ProductsProvider({ children }) {
 
   useEffect(() => {
     if (!hydrated) {
-      const saved = loadStoredCatalog();
-      if (saved) {
-        setProducts(saved.products);
-        setCollections(saved.collections);
-      }
-      setHydrated(true);
+      (async () => {
+        const remote = await loadRemoteCatalog();
+        if (remote) {
+          setProducts(remote.products);
+          setCollections(remote.collections);
+        } else {
+          const saved = loadStoredCatalog();
+          if (saved) {
+            setProducts(saved.products);
+            setCollections(saved.collections);
+          }
+        }
+        setHydrated(true);
+      })();
     }
   }, [hydrated]);
 
   useEffect(() => {
     if (hydrated) {
-      saveCatalog(products, collections);
+      persistCatalogLocally(products, collections);
+      persistCatalogRemotely(products, collections);
     }
   }, [products, collections, hydrated]);
 
@@ -230,6 +270,11 @@ export function ProductsProvider({ children }) {
     setProducts(initialProducts);
     setCollections(initialCollections);
     localStorage.removeItem(STORAGE_KEY);
+    if (typeof window !== 'undefined' && sessionStorage.getItem('mj_admin_key')) {
+      saveAdminCatalog({ products: initialProducts, collections: initialCollections }).catch((err) => {
+        console.warn('[ProductsContext] Échec reset serveur :', err.message || err);
+      });
+    }
   }, []);
 
   return (

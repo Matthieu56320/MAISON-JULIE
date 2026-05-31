@@ -11,6 +11,8 @@ import {
   buildCustomersFromOrders,
 } from './stripeOrders.js';
 import { sendOrderStatusNotification, sendContactFormEmail } from './emailService.js';
+import { loadCatalog, saveCatalog } from './catalogStore.js';
+import { loadSiteConfig, saveSiteConfig } from './siteConfigStore.js';
 
 const secretKey = process.env.STRIPE_SECRET_KEY;
 if (!secretKey) {
@@ -259,6 +261,58 @@ app.post('/api/contact/send', async (req, res) => {
     console.error('[contact]', err);
     res.status(500).json({ error: 'Une erreur est survenue' });
   }
+});
+
+app.get('/api/catalog', async (_req, res) => {
+  try {
+    const catalog = await loadCatalog();
+    res.json(catalog);
+  } catch (err) {
+    console.error('[GET /api/catalog]', err);
+    res.status(500).json({ error: 'Impossible de charger le catalogue' });
+  }
+});
+
+app.post('/api/admin/catalog', requireAdmin, async (req, res) => {
+  try {
+    const { products, collections } = req.body || {};
+    if (!Array.isArray(products) || !Array.isArray(collections)) {
+      return res.status(400).json({ error: 'Catalogue invalide' });
+    }
+    await saveCatalog({ products, collections });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[POST /api/admin/catalog]', err);
+    res.status(500).json({ error: 'Impossible d\'enregistrer le catalogue' });
+  }
+});
+
+app.get('/api/site-config', async (_req, res) => {
+  try {
+    const config = await loadSiteConfig();
+    res.json(config);
+  } catch (err) {
+    console.error('[GET /api/site-config]', err);
+    res.status(500).json({ error: 'Impossible de charger la configuration' });
+  }
+});
+
+app.post('/api/admin/site-config', requireAdmin, async (req, res) => {
+  try {
+    const config = req.body;
+    if (!config || typeof config !== 'object') {
+      return res.status(400).json({ error: 'Configuration invalide' });
+    }
+    await saveSiteConfig(config);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[POST /api/admin/site-config]', err);
+    res.status(500).json({ error: 'Impossible d\'enregistrer la configuration' });
+  }
+});
+
+app.get('/api/health', (_req, res) => {
+  res.json({ ok: true });
 });
 
 app.use((req, res) => {
