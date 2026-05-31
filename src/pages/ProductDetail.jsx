@@ -175,11 +175,7 @@ export default function ProductDetail() {
             <span style={{ fontFamily: "'Playfair Display', serif", fontSize: '36px', color: C.chocolate }}>
               {product.price.toFixed(2)} €
             </span>
-            {product.showShippingPrice && product.shippingCost > 0 ? (
-              <span style={{ fontSize: '13px', color: C.muted }}>+ {product.shippingCost.toFixed(2)} € de livraison</span>
-            ) : (
-              <span style={{ fontSize: '13px', color: C.bordeaux }}>Livraison offerte</span>
-            )}
+            <span style={{ fontSize: '13px', color: C.muted }}>+ 5,00 € de frais de livraison par commande</span>
           </div>
 
           <p style={{
@@ -242,7 +238,8 @@ export default function ProductDetail() {
             {[
               'Acier inoxydable hypoallergénique',
               'Plaqué or 18k longue durée',
-              'Livraison offerte partout en France',
+              'Commandes possibles 7j/7',
+              'Expéditions à partir du lundi, sauf indisponibilité',
             ].map((text) => (
               <div key={text} style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                 <span style={{ color: C.bordeaux, fontSize: '10px' }}>✦</span>

@@ -101,7 +101,7 @@ ${orderItems}
 
           <p style="color: #8A6B5C; font-size: 12px; margin-top: 24px; border-top: 1px solid #D4C4B0; padding-top: 16px;">
             Maison Julie<br>
-            contact@maison-julie.fr
+            julieberthier9@gmail.com
           </p>
         </div>
       `,

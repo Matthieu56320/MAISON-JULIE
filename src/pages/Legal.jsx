@@ -18,7 +18,7 @@ const CONTENT = {
       },
       {
         h: '3. Livraison',
-        p: 'Les délais de livraison sont communiqués à titre indicatif. En cas de retard important, le client sera informé. Les risques sont transférés au client à la remise du colis au transporteur.',
+        p: 'Les délais de livraison sont communiqués à titre indicatif. Les expéditions sont effectuées à partir du lundi, sauf indisponibilité. Des frais de livraison fixes de 5 € sont appliqués par commande. En cas de retard important, le client sera informé. Les risques sont transférés au client à la remise du colis au transporteur.',
       },
       {
         h: '4. Droit de rétractation',
@@ -30,7 +30,7 @@ const CONTENT = {
       },
       {
         h: '6. Contact',
-        p: 'Pour toute question : utilisez la page Contact ou écrivez à contact@maison-julie.fr.',
+        p: 'Pour toute question : utilisez la page Contact ou écrivez à julieberthier9@gmail.com.',
       },
     ],
   },
@@ -40,7 +40,7 @@ const CONTENT = {
     sections: [
       {
         h: 'Éditeur du site',
-        p: 'Maison Julie — Boutique de bijoux en ligne.\nEmail : contact@maison-julie.fr',
+        p: 'Maison Julie — Boutique de bijoux en ligne.\nEmail : julieberthier9@gmail.com',
       },
       {
         h: 'Hébergement',

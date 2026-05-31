@@ -1,7 +1,7 @@
 export const defaultSiteConfig = {
   announcement: {
     enabled: true,
-    text: 'Fête des mères le 31 mai — Livraison offerte',
+    text: 'Fête des mères le 31 mai — Expédition à partir du lundi, 5 € de livraison',
   },
   hero: {
     eyebrow: 'Bijoux & Accessoires',
@@ -67,10 +67,12 @@ export const defaultSiteConfig = {
     brandName: 'Maison Julie',
     tagline: 'Bijoux & accessoires — élégance au quotidien.',
     email: 'julieberthier9@gmail.com',
-    address: 'France — livraison offerte',
-    hours: 'Lundi – Vendredi : 9h – 18h\nSamedi : 10h – 13h\nDimanche : fermé',
-    instagramUrl: 'https://www.instagram.com/',
-    instagramHandle: '@maisonjulie',
+    address: 'France — expéditions à partir du lundi, 5 € de livraison',
+    hours: 'Commandes en ligne 7j/7\nExpéditions à partir du lundi, sauf indisponibilité',
+    instagramUrl: 'https://instagram.com/maisonjuliestudio',
+    instagramHandle: '@maisonjuliestudio',
+    tiktokUrl: 'https://tiktok.com/@julieeetco',
+    tiktokHandle: '@julieeetco',
   },
 };
 

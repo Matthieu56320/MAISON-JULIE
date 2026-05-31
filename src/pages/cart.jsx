@@ -6,6 +6,8 @@ import PageMeta from '../components/PageMeta';
 import { createCheckoutSession } from '../api/stripeCheckout';
 import { C } from '../theme/colors';
 
+const FLAT_SHIPPING_FEE = 5.00;
+
 export default function Cart() {
   const { cart, addToCart, removeFromCart, clearCart, totalPrice, totalItems } = useCart();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -13,11 +15,8 @@ export default function Cart() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
 
-  // Calculer les frais de livraison totaux
-  const totalShippingCost = cart.reduce((sum, item) => {
-    const shippingCost = Number(item.shippingCost) || 0;
-    return sum + (shippingCost * item.quantity);
-  }, 0);
+  // Frais de livraison fixes par commande
+  const totalShippingCost = cart.length > 0 ? FLAT_SHIPPING_FEE : 0;
 
   // Total avec frais de livraison
   const totalWithShipping = totalPrice + totalShippingCost;
@@ -268,10 +267,13 @@ export default function Cart() {
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: C.muted }}>
               <span>Livraison</span>
               <span style={{ color: totalShippingCost > 0 ? C.chocolate : C.bordeaux }}>
-                {totalShippingCost > 0 ? `${totalShippingCost.toFixed(2)} €` : 'Offerte'}
+                {totalShippingCost > 0 ? `${totalShippingCost.toFixed(2)} €` : '0,00 €'}
               </span>
             </div>
           </div>
+          <p style={{ fontSize: '12px', color: C.mutedLight, lineHeight: 1.6, marginBottom: '24px' }}>
+            Frais de livraison fixes de 5 € par commande. Expéditions à partir du lundi, sauf indisponibilité.
+          </p>
 
           <div style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',

@@ -386,9 +386,6 @@ function ProductCard({ product, onAdd, justAdded }) {
           </h3>
           <p style={{ fontSize: '14px', color: '#8A6B5C', marginBottom: '20px' }}>
             {product.price.toFixed(2)} €
-            {product.showShippingPrice && product.shippingCost > 0 && (
-              <span style={{ fontSize: '12px', color: '#A89488' }}> + {product.shippingCost.toFixed(2)} €</span>
-            )}
           </p>
 
           <button

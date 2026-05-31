@@ -50,6 +50,8 @@ function buildLineItems(items) {
     throw new Error('Panier vide');
   }
 
+  const SHIPPING_FEE = 5.00;
+
   const lineItems = items.map((item) => {
     const price = Number(item.price);
     const quantity = Math.max(1, Math.floor(Number(item.quantity) || 1));
@@ -73,23 +75,15 @@ function buildLineItems(items) {
     };
   });
 
-  // Ajouter les frais de livraison si présents
-  const totalShippingCost = items.reduce((sum, item) => {
-    const shippingCost = Number(item.shippingCost) || 0;
-    const quantity = Math.max(1, Math.floor(Number(item.quantity) || 1));
-    return sum + (shippingCost * quantity);
-  }, 0);
-
-  if (totalShippingCost > 0) {
-    lineItems.push({
-      price_data: {
-        currency: 'eur',
-        product_data: { name: 'Frais de livraison' },
-        unit_amount: Math.round(totalShippingCost * 100),
-      },
-      quantity: 1,
-    });
-  }
+  // Frais de livraison fixes par commande
+  lineItems.push({
+    price_data: {
+      currency: 'eur',
+      product_data: { name: 'Frais de livraison' },
+      unit_amount: Math.round(SHIPPING_FEE * 100),
+    },
+    quantity: 1,
+  });
 
   return lineItems;
 }

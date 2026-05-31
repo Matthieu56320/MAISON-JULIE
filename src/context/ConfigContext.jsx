@@ -12,7 +12,27 @@ function loadStoredConfig() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    return mergeSiteConfig(JSON.parse(raw));
+    const parsed = JSON.parse(raw);
+
+    if (parsed?.footer) {
+      if (parsed.footer.email === 'contact@maison-julie.fr') {
+        parsed.footer.email = defaultSiteConfig.footer.email;
+      }
+      if (parsed.footer.address?.includes('livraison offerte')) {
+        parsed.footer.address = defaultSiteConfig.footer.address;
+      }
+      if (parsed.footer.hours?.includes('Lundi – Vendredi')) {
+        parsed.footer.hours = defaultSiteConfig.footer.hours;
+      }
+      if (parsed.footer.instagramUrl && /instagram\.com\/?$/i.test(parsed.footer.instagramUrl.trim())) {
+        parsed.footer.instagramUrl = defaultSiteConfig.footer.instagramUrl;
+      }
+      if (parsed.footer.tiktokUrl && /tiktok\.com\/?$/i.test(parsed.footer.tiktokUrl.trim())) {
+        parsed.footer.tiktokUrl = defaultSiteConfig.footer.tiktokUrl;
+      }
+    }
+
+    return mergeSiteConfig(parsed);
   } catch {
     return null;
   }

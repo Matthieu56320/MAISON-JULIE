@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
 const SITE_NAME = 'Maison Julie';
-const DEFAULT_DESCRIPTION = 'Bijoux et accessoires faits avec soin — acier inoxydable, plaqué or. Livraison offerte en France.';
+const DEFAULT_DESCRIPTION = 'Bijoux et accessoires faits avec soin — acier inoxydable, plaqué or. Frais de livraison 5 € par commande.';
 const DEFAULT_OG_IMAGE = '/textures/beige-chaux.png';
 
 function getBaseUrl() {

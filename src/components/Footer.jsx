@@ -6,6 +6,28 @@ import { C } from '../theme/colors';
 export default function Footer() {
   const { siteConfig } = useConfig();
   const { footer } = siteConfig;
+  const defaultFooter = {
+    email: 'julieberthier9@gmail.com',
+    address: 'France — expéditions à partir du lundi, 5 € de livraison',
+    hours: 'Commandes en ligne 7j/7\nExpéditions à partir du lundi, sauf indisponibilité',
+    instagramUrl: 'https://instagram.com/maisonjuliestudio',
+    instagramHandle: '@maisonjuliestudio',
+    tiktokUrl: 'https://tiktok.com/@julieeetco',
+    tiktokHandle: '@julieeetco',
+  };
+  const email = footer.email === 'contact@maison-julie.fr' ? defaultFooter.email : (footer.email || defaultFooter.email);
+  const address = footer.address?.includes('livraison offerte') ? defaultFooter.address : (footer.address || defaultFooter.address);
+  const hours = footer.hours?.includes('Lundi – Vendredi') ? defaultFooter.hours : (footer.hours || defaultFooter.hours);
+  const sanitizedInstagramUrl = footer.instagramUrl?.trim();
+  const instagramUrl = sanitizedInstagramUrl && !/instagram\.com\/?$/i.test(sanitizedInstagramUrl)
+    ? sanitizedInstagramUrl
+    : defaultFooter.instagramUrl;
+  const instagramHandle = footer.instagramHandle || defaultFooter.instagramHandle;
+  const sanitizedTiktokUrl = footer.tiktokUrl?.trim();
+  const tiktokUrl = sanitizedTiktokUrl && !/tiktok\.com\/?(\@.*)?$/i.test(sanitizedTiktokUrl)
+    ? sanitizedTiktokUrl
+    : defaultFooter.tiktokUrl;
+  const tiktokHandle = footer.tiktokHandle || defaultFooter.tiktokHandle;
 
   return (
     <footer style={{
@@ -39,29 +61,39 @@ export default function Footer() {
         <div>
           <p style={sectionLabel}>Contact</p>
           <p style={{ fontSize: '14px', lineHeight: 1.85 }}>
-            <a href={`mailto:${footer.email}`} style={linkStyle}>{footer.email}</a>
+            <a href={`mailto:${email}`} style={linkStyle}>{email}</a>
             <br />
-            {footer.address}
+            {address}
           </p>
         </div>
 
         <div>
           <p style={sectionLabel}>Horaires</p>
           <p style={{ fontSize: '14px', lineHeight: 1.85, whiteSpace: 'pre-line' }}>
-            {footer.hours}
+            {hours}
           </p>
         </div>
 
         <div>
           <p style={sectionLabel}>Suivez-nous</p>
-          {footer.instagramUrl && (
+          {instagramUrl && (
             <a
-              href={footer.instagramUrl}
+              href={instagramUrl}
               target="_blank"
               rel="noopener noreferrer"
               style={{ ...linkStyle, display: 'inline-block', marginBottom: '16px' }}
             >
-              Instagram {footer.instagramHandle}
+              Instagram {instagramHandle}
+            </a>
+          )}
+          {tiktokUrl && (
+            <a
+              href={tiktokUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ ...linkStyle, display: 'inline-block', marginBottom: '16px' }}
+            >
+              TikTok {tiktokHandle}
             </a>
           )}
           <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
