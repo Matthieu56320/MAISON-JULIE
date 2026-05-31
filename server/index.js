@@ -267,7 +267,7 @@ app.post('/api/contact/send', async (req, res) => {
   }
 });
 
-app.get('*', (req, res) => {
+app.use((req, res) => {
   if (req.path.startsWith('/api/')) {
     return res.status(404).json({ error: 'Route API introuvable' });
   }

@@ -1,20 +1,30 @@
 import nodemailer from 'nodemailer';
 
-const gmailUser = process.env.GMAIL_USER;
-const gmailPass = process.env.GMAIL_PASS;
-const ownerEmail = process.env.OWNER_EMAIL;
-
 let transporter;
 
 function getTransporter() {
-  if (!transporter && gmailUser && gmailPass) {
+  const gmailUser = process.env.GMAIL_USER;
+  const gmailPass = process.env.GMAIL_PASS;
+
+  if (!gmailUser || !gmailPass) {
+    console.warn('[emailService] Variables manquantes:', {
+      GMAIL_USER: gmailUser ? '✓' : '✗ MANQUANT',
+      GMAIL_PASS: gmailPass ? '✓' : '✗ MANQUANT',
+    });
+    return null;
+  }
+
+  if (!transporter) {
     transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
         user: gmailUser,
         pass: gmailPass,
       },
+      logger: true,
+      debug: true,
     });
+    console.log('[emailService] Transporter Gmail créé pour', gmailUser);
   }
   return transporter;
 }
@@ -22,6 +32,7 @@ function getTransporter() {
 export async function sendOrderStatusNotification(order, newStatus) {
   try {
     const transport = getTransporter();
+    const ownerEmail = process.env.OWNER_EMAIL;
     if (!transport || !ownerEmail || !order.customerEmail) {
       console.warn('[emailService] Email config incomplete');
       return false;
@@ -41,7 +52,7 @@ export async function sendOrderStatusNotification(order, newStatus) {
       .join('\n');
 
     const mailOptions = {
-      from: gmailUser,
+      from: process.env.GMAIL_USER,
       to: order.customerEmail,
       subject: `Statut de votre commande #${order.id} - ${statusText}`,
       html: `
@@ -100,7 +111,10 @@ ${orderItems}
     console.log(`[email] Notification de statut envoyée à ${order.customerEmail}`);
     return true;
   } catch (err) {
-    console.error('[email] Erreur lors de l\'envoi de notification', err);
+    console.error('[email] Erreur COMPLÈTE:', JSON.stringify(err, null, 2));
+    console.error('[email] Message:', err.message);
+    console.error('[email] Code:', err.code);
+    console.error('[email] Response:', err.response);
     return false;
   }
 }
@@ -108,13 +122,14 @@ ${orderItems}
 export async function sendContactFormEmail(formData) {
   try {
     const transport = getTransporter();
+    const ownerEmail = process.env.OWNER_EMAIL;
     if (!transport || !ownerEmail) {
       console.warn('[emailService] Email config incomplete');
       return false;
     }
 
     const mailOptions = {
-      from: gmailUser,
+      from: process.env.GMAIL_USER,
       to: ownerEmail,
       replyTo: formData.email,
       subject: `Nouveau message de contact - ${formData.name}`,
@@ -163,7 +178,10 @@ export async function sendContactFormEmail(formData) {
     console.log(`[email] Message de contact reçu de ${formData.email}`);
     return true;
   } catch (err) {
-    console.error('[email] Erreur lors de l\'envoi du formulaire de contact', err);
+    console.error('[email] Erreur COMPLÈTE:', JSON.stringify(err, null, 2));
+    console.error('[email] Message:', err.message);
+    console.error('[email] Code:', err.code);
+    console.error('[email] Response:', err.response);
     return false;
   }
 }
