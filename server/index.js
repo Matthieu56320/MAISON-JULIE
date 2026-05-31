@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import Stripe from 'stripe';
 import { loadOrders, updateOrderFulfillment } from './ordersStore.js';
 import {
@@ -16,6 +18,7 @@ if (!secretKey) {
   process.exit(1);
 }
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const stripe = new Stripe(secretKey);
 const app = express();
 const PORT = Number(process.env.PORT) || 4242;
@@ -26,9 +29,13 @@ const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 app.use(cors({ origin: CLIENT_URL }));
 app.use(express.json({ limit: '1mb' }));
 
+const staticDir = path.join(__dirname, '../dist');
+app.use(express.static(staticDir));
+
 console.log('[SERVER] Démarrage avec CLIENT_URL:', CLIENT_URL);
 console.log('[SERVER] GMAIL_USER:', process.env.GMAIL_USER ? '✓ configuré' : '✗ MANQUANT');
 console.log('[SERVER] STRIPE_SECRET_KEY:', secretKey ? '✓ configuré' : '✗ MANQUANT');
+console.log('[SERVER] Static dir:', staticDir);
 
 function requireAdmin(req, res, next) {
   const key = req.headers['x-admin-key'];
@@ -258,6 +265,13 @@ app.post('/api/contact/send', async (req, res) => {
     console.error('[contact]', err);
     res.status(500).json({ error: 'Une erreur est survenue' });
   }
+});
+
+app.get('*', (req, res) => {
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'Route API introuvable' });
+  }
+  res.sendFile(path.join(staticDir, 'index.html'));
 });
 
 app.listen(PORT, () => {
