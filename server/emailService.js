@@ -16,8 +16,13 @@ function getTransporter() {
 
   if (!transporter) {
     transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user: gmailUser, pass: gmailPass },
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false, // STARTTLS
+      auth: {
+        user: gmailUser,
+        pass: gmailPass,
+      },
     });
     console.log('[emailService] Transporter Gmail créé pour', gmailUser);
   }
@@ -208,7 +213,6 @@ export async function sendShippingNotification(order, trackingNumber) {
       ? order.stripeSessionId.slice(-8).toUpperCase()
       : (order.id || '').slice(-8).toUpperCase();
 
-    // Lien de suivi La Poste
     const trackingUrl = trackingNumber
       ? `https://www.laposte.fr/outils/suivre-vos-envois?code=${trackingNumber}`
       : null;
@@ -276,8 +280,6 @@ export async function sendShippingNotification(order, trackingNumber) {
 // ── 3. Email de changement de statut générique ────────────────────────────────
 
 export async function sendOrderStatusNotification(order, newStatus) {
-  // Pour "shipped", utiliser sendShippingNotification à la place (avec numéro de suivi)
-  // Cette fonction gère les autres statuts : annulé, livré, etc.
   try {
     const transport = getTransporter();
     if (!transport || !order.customerEmail) return false;
