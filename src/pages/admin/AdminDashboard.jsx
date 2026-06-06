@@ -7,6 +7,7 @@ import {
   clearAdminSessionKey,
   fetchAdminOrders,
   fetchAdminCustomers,
+  fetchAdminUsers,
   syncStripeOrders,
   updateOrderFulfillment,
 } from '../../api/adminApi';
@@ -493,10 +494,9 @@ export default function AdminDashboard() {
       const { customers } = await fetchAdminCustomers();
 
       // Chargement des utilisateurs Firebase Auth
-      const { adminFetch } = await import('../../api/adminApi');
       let fbUsers = [];
       try {
-        const data = await adminFetch('/api/admin/users');
+        const data = await fetchAdminUsers();
         fbUsers = data.users || [];
       } catch (e) {
         console.warn('[AdminDashboard] Impossible de charger les utilisateurs Firebase:', e.message);
