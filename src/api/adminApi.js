@@ -69,6 +69,10 @@ export function saveAdminSiteConfig(config) {
   });
 }
 
+export function fetchAdminUsers() {
+  return adminFetch('/api/admin/users');
+}
+
 export async function checkApiHealth() {
   const res = await fetch(apiUrl('/api/health'));
   return res.ok;
