@@ -13,11 +13,15 @@ const ORDERS_FILE = path.join(DATA_DIR, 'orders.json');
 function getAdminDb() {
   try {
     if (!getApps().length) {
+      const privateKey = process.env.FIREBASE_PRIVATE_KEY_BASE64
+        ? Buffer.from(process.env.FIREBASE_PRIVATE_KEY_BASE64, 'base64').toString('utf8')
+        : process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+
       initializeApp({
         credential: cert({
           projectId: process.env.FIREBASE_PROJECT_ID,
           clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-          privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+          privateKey,
         }),
       });
     }
