@@ -134,9 +134,7 @@ app.post(
         const order = await persistOrderFromSession(stripe, session.id);
         console.log('[webhook] Commande enregistrée:', session.id);
         if (order) {
-          sendOrderConfirmation(order).catch(err =>
-            console.error('[webhook] email confirmation:', err.message)
-          );
+          await sendOrderConfirmation(order);
         }
       }
     } catch (err) {
@@ -162,11 +160,8 @@ app.post('/api/record-order', async (req, res) => {
     if (!order) {
       return res.status(400).json({ error: 'Paiement non confirmé' });
     }
-    // Répondre immédiatement, email en arrière-plan
+    await sendOrderConfirmation(order);
     res.json({ ok: true, order });
-    sendOrderConfirmation(order).catch(err =>
-      console.error('[record-order] email:', err.message)
-    );
   } catch (err) {
     console.error('[record-order]', err);
     res.status(500).json({ error: 'Enregistrement impossible' });
@@ -231,11 +226,9 @@ app.post('/api/contact/send', async (req, res) => {
     if (!emailRegex.test(email)) {
       return res.status(400).json({ error: 'Email invalide' });
     }
-    // Répondre immédiatement, email en arrière-plan
+    const sent = await sendContactFormEmail({ name, email, phone, message });
+    if (!sent) return res.status(500).json({ error: "Impossible d'envoyer le message" });
     res.json({ ok: true });
-    sendContactFormEmail({ name, email, phone, message }).catch(err =>
-      console.error('[contact] email:', err.message)
-    );
   } catch (err) {
     console.error('[contact]', err);
     res.status(500).json({ error: 'Une erreur est survenue' });
@@ -301,6 +294,7 @@ app.delete('/api/admin/reviews/:id', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/orders', requireAdmin, async (_req, res) => {
   try {
+    // Priorité Firestore, fallback JSON local
     const orders = await loadOrdersFromFirestore();
     res.json({ orders });
   } catch (err) {
@@ -348,18 +342,17 @@ app.patch('/api/admin/orders/:id', requireAdmin, async (req, res) => {
 
     if (!updated) return res.status(404).json({ error: 'Commande introuvable' });
 
-    // Répondre IMMÉDIATEMENT au client
-    res.json({ order: updated });
-
-    // Envoyer l'email en arrière-plan (fire-and-forget)
     if (fulfillmentStatus === 'shipped') {
       sendShippingNotification(updated, trackingNumber || null)
-        .catch(err => console.error('[email background] expédition:', err.message));
+        .then(() => console.log('[email] Expédition envoyée OK'))
+        .catch(err => console.error('[email ERREUR expédition]', err));
     } else {
       sendOrderStatusNotification(updated, fulfillmentStatus)
-        .catch(err => console.error('[email background] statut:', err.message));
+        .then(() => console.log('[email] Statut envoyé OK'))
+        .catch(err => console.error('[email ERREUR statut]', err));
     }
 
+    res.json({ order: updated });
   } catch (err) {
     console.error('[admin/patch order]', err);
     res.status(500).json({ error: 'Mise à jour impossible' });
