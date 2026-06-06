@@ -360,6 +360,7 @@ export default function AdminDashboard() {
 
   const [orders, setOrders] = useState([]);
   const [registeredClients, setRegisteredClients] = useState([]);
+  const [firebaseUsers, setFirebaseUsers] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersSyncing, setOrdersSyncing] = useState(false);
   const [ordersError, setOrdersError] = useState('');
@@ -374,11 +375,24 @@ export default function AdminDashboard() {
       console.log('[AdminDashboard] Chargement des commandes...');
       const { orders: list } = await fetchAdminOrders();
       const { customers } = await fetchAdminCustomers();
+
+      // Chargement des utilisateurs Firebase Auth
+      const { adminFetch } = await import('../../api/adminApi');
+      let fbUsers = [];
+      try {
+        const data = await adminFetch('/api/admin/users');
+        fbUsers = data.users || [];
+      } catch (e) {
+        console.warn('[AdminDashboard] Impossible de charger les utilisateurs Firebase:', e.message);
+      }
+
       console.log('[AdminDashboard] Commandes reçues:', list?.length || 0);
       console.log('[AdminDashboard] Clients reçus:', customers?.length || 0);
+      console.log('[AdminDashboard] Utilisateurs Firebase:', fbUsers?.length || 0);
       console.log('[AdminDashboard] Structure commande:', list?.[0]);
       setOrders(list || []);
       setRegisteredClients(customers || []);
+      setFirebaseUsers(fbUsers);
     } catch (err) {
       console.error('[AdminDashboard] Erreur:', err);
       setOrdersError(err.message || 'Impossible de charger les commandes Stripe.');
@@ -1093,35 +1107,122 @@ export default function AdminDashboard() {
               </table>
             </div>
 
-            {/* Tableau clients */}
-            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '22px', fontWeight: 400, color: '#56352c', marginBottom: '24px' }}>
-              Clients
-            </h2>
-            <div style={{ overflowX: 'auto', border: '1px solid #D4C4B0' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-                <thead>
-                  <tr style={{ background: '#E8DCC4', borderBottom: '1px solid #D4C4B0' }}>
-                    {['Email', 'Nom', 'Commandes', 'Total dépensé', 'Dernière commande'].map(h => (
-                      <th key={h} style={{ padding: '14px 18px', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: '#8A6B5C', textAlign: 'left' }}>{h}</th>
+            {/* Tableau clients — deux sous-onglets */}
+            {(() => {
+              const [clientTab, setClientTab] = React.useState('accounts');
+              return (
+                <div style={{ marginBottom: '16px' }}>
+                  <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '22px', fontWeight: 400, color: '#56352c', marginBottom: '20px' }}>
+                    Clients
+                  </h2>
+
+                  {/* Sous-onglets */}
+                  <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid #D4C4B0', marginBottom: '24px' }}>
+                    {[
+                      { key: 'accounts', label: `Comptes créés (${firebaseUsers.length})` },
+                      { key: 'buyers',   label: `Acheteurs Stripe (${registeredClients.length})` },
+                    ].map(st => (
+                      <button key={st.key} onClick={() => setClientTab(st.key)} style={{
+                        background: 'none', border: 'none',
+                        borderBottom: `2px solid ${clientTab === st.key ? '#620017' : 'transparent'}`,
+                        cursor: 'pointer', fontSize: '12px', letterSpacing: '1px', textTransform: 'uppercase',
+                        color: clientTab === st.key ? '#620017' : '#8A6B5C',
+                        fontFamily: "'DM Sans', sans-serif", padding: '10px 20px 10px 0',
+                        marginBottom: '-1px', transition: 'color 0.2s',
+                      }}>
+                        {st.label}
+                      </button>
                     ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {registeredClients.length === 0 && !ordersLoading && (
-                    <tr><td colSpan={5} style={{ padding: '32px', textAlign: 'center', color: '#8A6B5C' }}>Aucun client pour l&apos;instant.</td></tr>
+                  </div>
+
+                  {/* Comptes Firebase Auth */}
+                  {clientTab === 'accounts' && (
+                    <div style={{ overflowX: 'auto', border: '1px solid #D4C4B0' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                        <thead>
+                          <tr style={{ background: '#E8DCC4', borderBottom: '1px solid #D4C4B0' }}>
+                            {['Email', 'Nom', 'Connexion via', 'Inscrit le', 'Dernière connexion'].map(h => (
+                              <th key={h} style={{ padding: '14px 18px', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: '#8A6B5C', textAlign: 'left' }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {firebaseUsers.length === 0 && !ordersLoading && (
+                            <tr><td colSpan={5} style={{ padding: '32px', textAlign: 'center', color: '#8A6B5C' }}>Aucun compte créé pour l&apos;instant.</td></tr>
+                          )}
+                          {firebaseUsers.map(u => (
+                            <tr key={u.uid} style={{ borderBottom: '1px solid #D4C4B0' }}
+                              onMouseEnter={e => e.currentTarget.style.background = '#FDFAF7'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            >
+                              <td style={{ padding: '14px 18px', fontWeight: 500, color: '#56352c' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                  {u.photoURL
+                                    ? <img src={u.photoURL} alt="" style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} />
+                                    : <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#E8DCC4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: '#8A6B5C', flexShrink: 0 }}>
+                                        {(u.displayName || u.email || '?')[0].toUpperCase()}
+                                      </div>
+                                  }
+                                  {u.email || '—'}
+                                </div>
+                              </td>
+                              <td style={{ padding: '14px 18px', color: '#8A6B5C' }}>{u.displayName || '—'}</td>
+                              <td style={{ padding: '14px 18px' }}>
+                                <span style={{
+                                  background: u.provider === 'google.com' ? '#EEF5FF' : '#F7F0DB',
+                                  color: u.provider === 'google.com' ? '#185FA5' : '#A3701A',
+                                  padding: '3px 10px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px',
+                                }}>
+                                  {u.provider === 'google.com' ? 'Google' : 'Email'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '14px 18px', color: '#8A6B5C', whiteSpace: 'nowrap' }}>
+                                {u.createdAt ? new Date(u.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
+                              </td>
+                              <td style={{ padding: '14px 18px', color: '#8A6B5C', whiteSpace: 'nowrap' }}>
+                                {u.lastSignIn ? new Date(u.lastSignIn).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
-                  {registeredClients.map(c => (
-                    <tr key={c.id} style={{ borderBottom: '1px solid #D4C4B0' }}>
-                      <td style={{ padding: '14px 18px', fontWeight: 500, color: '#56352c' }}>{c.email}</td>
-                      <td style={{ padding: '14px 18px', color: '#8A6B5C' }}>{c.name || '—'}</td>
-                      <td style={{ padding: '14px 18px', color: '#56352c' }}>{c.orderCount}</td>
-                      <td style={{ padding: '14px 18px', color: '#620017', fontWeight: 500 }}>{(c.totalSpent || 0).toFixed(2)} €</td>
-                      <td style={{ padding: '14px 18px', color: '#8A6B5C', whiteSpace: 'nowrap' }}>{formatOrderDate(c.lastOrderAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+
+                  {/* Acheteurs Stripe */}
+                  {clientTab === 'buyers' && (
+                    <div style={{ overflowX: 'auto', border: '1px solid #D4C4B0' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                        <thead>
+                          <tr style={{ background: '#E8DCC4', borderBottom: '1px solid #D4C4B0' }}>
+                            {['Email', 'Nom', 'Commandes', 'Total dépensé', 'Dernière commande'].map(h => (
+                              <th key={h} style={{ padding: '14px 18px', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: '#8A6B5C', textAlign: 'left' }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {registeredClients.length === 0 && !ordersLoading && (
+                            <tr><td colSpan={5} style={{ padding: '32px', textAlign: 'center', color: '#8A6B5C' }}>Aucun acheteur pour l&apos;instant.</td></tr>
+                          )}
+                          {registeredClients.map(c => (
+                            <tr key={c.id} style={{ borderBottom: '1px solid #D4C4B0' }}
+                              onMouseEnter={e => e.currentTarget.style.background = '#FDFAF7'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            >
+                              <td style={{ padding: '14px 18px', fontWeight: 500, color: '#56352c' }}>{c.email}</td>
+                              <td style={{ padding: '14px 18px', color: '#8A6B5C' }}>{c.name || '—'}</td>
+                              <td style={{ padding: '14px 18px', color: '#56352c' }}>{c.orderCount}</td>
+                              <td style={{ padding: '14px 18px', color: '#620017', fontWeight: 500 }}>{(c.totalSpent || 0).toFixed(2)} €</td>
+                              <td style={{ padding: '14px 18px', color: '#8A6B5C', whiteSpace: 'nowrap' }}>{formatOrderDate(c.lastOrderAt)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
           </div>
         )}
