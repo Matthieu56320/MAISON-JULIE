@@ -2,9 +2,10 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+
 import { fileURLToPath } from 'url';
 import Stripe from 'stripe';
-import { loadOrders, loadOrdersFromFirestore, updateOrderFulfillment, updateOrderFulfillmentAnywhere, cancelOrder } from './ordersStore.js';
+import { loadOrders, loadOrdersFromFirestore, updateOrderFulfillment, updateOrderFulfillmentAnywhere, cancelOrder, listFirebaseUsers } from './ordersStore.js';
 import {
   persistOrderFromSession,
   syncPaidSessionsFromStripe,
@@ -309,6 +310,15 @@ app.get('/api/admin/customers', requireAdmin, async (_req, res) => {
     res.json({ customers: buildCustomersFromOrders(orders) });
   } catch (err) {
     res.status(500).json({ error: 'Impossible de charger les clients' });
+  }
+});
+
+app.get('/api/admin/users', requireAdmin, async (_req, res) => {
+  try {
+    const users = await listFirebaseUsers();
+    res.json({ users });
+  } catch (err) {
+    res.status(500).json({ error: 'Impossible de charger les utilisateurs' });
   }
 });
 
