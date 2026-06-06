@@ -38,7 +38,7 @@ function AppShell() {
           <Route path="/contact" element={<Contact />} />
           <Route path="/panier" element={<Cart />} />
           <Route path="/inscription" element={<Register />} />
-          <Route path="/commande/merci" element={<CheckoutSuccess />} />
+          <Route path="/commande-confirmee" element={<CheckoutSuccess />} />
           <Route path="/cgv" element={<Legal type="cgv" />} />
           <Route path="/mot-de-passe-oublie" element={<ForgotPassword />} />
           <Route path="/mentions-legales" element={<Legal type="mentions" />} />
