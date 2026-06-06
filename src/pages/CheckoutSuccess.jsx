@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import PageMeta from '../components/PageMeta';
@@ -9,8 +9,12 @@ export default function CheckoutSuccess() {
   const [searchParams] = useSearchParams();
   const sessionId = searchParams.get('session_id');
   const { clearCart } = useCart();
+  const hasRun = useRef(false);
 
   useEffect(() => {
+    if (hasRun.current) return;
+    hasRun.current = true;
+
     clearCart();
     if (!sessionId) return;
     fetch(apiUrl('/api/record-order'), {
@@ -18,7 +22,7 @@ export default function CheckoutSuccess() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId }),
     }).catch(() => {});
-  }, [clearCart, sessionId]);
+  }, []);
 
   return (
     <div style={{
