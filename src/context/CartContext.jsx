@@ -1,12 +1,9 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 
-// Création du contexte
 const CartContext = createContext();
 
-// Fournisseur du contexte qui va envelopper toute l'application
 export function CartProvider({ children }) {
   const [cart, setCart] = useState(() => {
-    // Charger le panier depuis localStorage au premier rendu
     try {
       const saved = localStorage.getItem('mj_cart');
       return saved ? JSON.parse(saved) : [];
@@ -15,51 +12,51 @@ export function CartProvider({ children }) {
     }
   });
 
-  // Sauvegarder le panier dans localStorage à chaque changement
   useEffect(() => {
     localStorage.setItem('mj_cart', JSON.stringify(cart));
   }, [cart]);
 
-  // 1. Ajouter un produit au panier
-  const addToCart = (product) => {
-    if (!product.inStock) return; // Sécurité : on n'ajoute pas un produit épuisé
+  // 1. Ajouter un produit avec prise en compte de la taille
+  const addToCart = (product, selectedSize = null) => {
+    if (!product.inStock) return;
 
     setCart((prevCart) => {
-      // On cherche si le produit est déjà présent dans le panier
-      const existingProduct = prevCart.find((item) => item.id === product.id);
+      // On cherche si le produit AVEC LA MÊME TAILLE existe déjà
+      const existingProduct = prevCart.find(
+        (item) => item.id === product.id && item.size === selectedSize
+      );
 
       if (existingProduct) {
-        // S'il existe, on augmente sa quantité de 1
         return prevCart.map((item) =>
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+          item.id === product.id && item.size === selectedSize
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
         );
       }
-      // Sinon, on l'ajoute au tableau avec une quantité initiale de 1
-      return [...prevCart, { ...product, quantity: 1 }];
+      // On ajoute la propriété "size" à l'article du panier
+      return [...prevCart, { ...product, quantity: 1, size: selectedSize }];
     });
   };
 
-  // 2. Retirer ou baisser la quantité d'un produit
-  const removeFromCart = (productId) => {
+  // 2. Retirer ou baisser la quantité d'un produit (différencié par taille)
+  const removeFromCart = (productId, selectedSize = null) => {
     setCart((prevCart) =>
       prevCart
         .map((item) =>
-          item.id === productId ? { ...item, quantity: item.quantity - 1 } : item
+          item.id === productId && item.size === selectedSize
+            ? { ...item, quantity: item.quantity - 1 }
+            : item
         )
-        .filter((item) => item.quantity > 0) // Si la quantité tombe à 0, on supprime l'article
+        .filter((item) => item.quantity > 0)
     );
   };
 
-  // 3. Vider complètement le panier (utile après une commande)
   const clearCart = () => {
     setCart([]);
     localStorage.removeItem('mj_cart');
   };
 
-  // 4. Calculer le nombre total d'articles dans le panier (pour la Navbar)
   const totalItems = cart.reduce((total, item) => total + item.quantity, 0);
-
-  // 5. Calculer le montant total en euros
   const totalPrice = cart.reduce((total, item) => total + item.price * item.quantity, 0);
 
   return (
@@ -69,7 +66,6 @@ export function CartProvider({ children }) {
   );
 }
 
-// Hook personnalisé pour utiliser le panier super facilement ailleurs dans le code
 export function useCart() {
   return useContext(CartContext);
 }
