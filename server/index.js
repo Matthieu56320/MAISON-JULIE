@@ -27,7 +27,7 @@ if (!secretKey) {
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const stripe = new Stripe(secretKey);
+const stripe = new Stripe(secretKey, { apiVersion: '2024-06-20' });
 const app = express();
 const PORT = Number(process.env.PORT) || 4242;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
@@ -413,8 +413,11 @@ app.post('/api/admin/promo-codes', requireAdmin, async (req, res) => {
 
     // 2. Syntaxe universelle tolérée par toutes les versions d'API de Stripe
     const requestParams = {
-      coupon: coupon.id,
-      code: String(code).toUpperCase().trim()
+      promotion: {
+        type: 'coupon',
+        coupon: coupon.id,
+      },
+      code: String(code).toUpperCase().trim(),
     };
 
     // On ajoute les options si elles existent
