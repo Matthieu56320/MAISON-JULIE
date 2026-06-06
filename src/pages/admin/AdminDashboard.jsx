@@ -353,11 +353,19 @@ export default function AdminDashboard() {
   const [promoForm, setPromoForm] = useState({ code: '', discountType: 'percent', discountValue: '', maxRedemptions: '', expiresAt: '' });
   const [showPromoForm, setShowPromoForm] = useState(false);
 
+  // Avis clients
+  const [pendingReviews, setPendingReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewsError, setReviewsError] = useState('');
+
   const [orders, setOrders] = useState([]);
   const [registeredClients, setRegisteredClients] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersSyncing, setOrdersSyncing] = useState(false);
   const [ordersError, setOrdersError] = useState('');
+  const [selectedOrder, setSelectedOrder] = useState(null);   // commande ouverte dans le modal
+  const [trackingInput, setTrackingInput] = useState('');     // champ numéro de suivi
+  const [statusUpdating, setStatusUpdating] = useState(null); // id de la commande en cours de maj
 
   const loadOrdersData = useCallback(async () => {
     setOrdersLoading(true);
@@ -409,6 +417,12 @@ export default function AdminDashboard() {
     }
   }, [isAuthorized, tab, loadPromoCodes]);
 
+  useEffect(() => {
+    if (isAuthorized && tab === 'reviews') {
+      loadPendingReviews();
+    }
+  }, [isAuthorized, tab]);
+
   const handleCreatePromo = async () => {
     if (!promoForm.code.trim() || !promoForm.discountValue) {
       return alert('Code et valeur de réduction requis.');
@@ -443,6 +457,52 @@ export default function AdminDashboard() {
       if (!res.ok) throw new Error('Erreur désactivation');
       flash('Code promo désactivé.');
       loadPromoCodes();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const loadPendingReviews = async () => {
+    setReviewsLoading(true);
+    setReviewsError('');
+    try {
+      const res = await fetch('/api/admin/reviews', {
+        headers: { 'x-admin-key': sessionStorage.getItem('mj_admin_key') || 'admin123' },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Erreur chargement');
+      setPendingReviews(data.reviews || []);
+    } catch (err) {
+      setReviewsError(err.message || 'Impossible de charger les avis');
+    } finally {
+      setReviewsLoading(false);
+    }
+  };
+
+  const handlePublishReview = async (id) => {
+    try {
+      const res = await fetch(`/api/admin/reviews/${id}/publish`, {
+        method: 'POST',
+        headers: { 'x-admin-key': sessionStorage.getItem('mj_admin_key') || 'admin123' },
+      });
+      if (!res.ok) throw new Error('Erreur publication');
+      flash('✓ Avis publié sur la page d\'accueil.');
+      loadPendingReviews();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleRefuseReview = async (id) => {
+    if (!window.confirm('Supprimer définitivement cet avis ?')) return;
+    try {
+      const res = await fetch(`/api/admin/reviews/${id}`, {
+        method: 'DELETE',
+        headers: { 'x-admin-key': sessionStorage.getItem('mj_admin_key') || 'admin123' },
+      });
+      if (!res.ok) throw new Error('Erreur suppression');
+      flash('Avis refusé et supprimé.');
+      loadPendingReviews();
     } catch (err) {
       alert(err.message);
     }
@@ -516,17 +576,45 @@ export default function AdminDashboard() {
     flash('Collection supprimée (et ses produits retirés du catalogue).');
   };
 
-  const toggleOrderStatus = async (order) => {
-    const statusSequence = ['pending', 'preparing', 'shipped', 'delivered'];
-    const currentIdx = statusSequence.indexOf(order.fulfillmentStatus || 'pending');
-    const next = statusSequence[(currentIdx + 1) % statusSequence.length];
+  // Ouvre le modal de détail d'une commande
+  const openOrder = (order) => {
+    setSelectedOrder(order);
+    setTrackingInput(order.trackingNumber || '');
+  };
+
+  // Change le statut d'une commande
+  // Si passage à "shipped" → envoie aussi le numéro de suivi
+  const handleOrderAction = async (orderId, fulfillmentStatus, trackingNumber = null) => {
+    setStatusUpdating(orderId);
     try {
-      const { order: updated } = await updateOrderFulfillment(order.id, next);
-      setOrders((prev) => prev.map((o) => (o.id === order.id ? updated : o)));
-      const labels = { pending: 'En attente', preparing: 'En préparation', shipped: 'Expédié', delivered: 'Livré' };
-      flash(`✓ Commande ${updated.shortId || updated.id} : ${labels[next]}`);
+      const adminKey = sessionStorage.getItem('mj_admin_key') || 'admin123';
+      const body = { fulfillmentStatus };
+      if (trackingNumber) body.trackingNumber = trackingNumber;
+
+      const res = await fetch(`/api/admin/orders/${orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Mise à jour impossible');
+
+      const updated = data.order;
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
+      if (selectedOrder?.id === orderId) setSelectedOrder(updated);
+
+      const labels = {
+        pending:   'En attente',
+        preparing: 'En préparation',
+        shipped:   'Expédié — email envoyé au client',
+        delivered: 'Livré',
+        cancelled: 'Annulée',
+      };
+      flash(`✓ Commande mise à jour : ${labels[fulfillmentStatus] || fulfillmentStatus}`);
     } catch (err) {
       alert(err.message || 'Mise à jour impossible');
+    } finally {
+      setStatusUpdating(null);
     }
   };
 
@@ -657,6 +745,7 @@ export default function AdminDashboard() {
               { key: 'products', label: 'Catalogue' },
               { key: 'collections', label: 'Collections' },
               { key: 'promo', label: 'Codes promo' },
+              { key: 'reviews', label: 'Avis' },
             ].map(t => (
               <button key={t.key} onClick={() => setTab(t.key)} style={{
                 background: 'none', border: 'none', cursor: 'pointer',
@@ -715,49 +804,231 @@ export default function AdminDashboard() {
         {/* ─── ONGLET COMMANDES ─── */}
         {tab === 'orders' && (
           <div>
-            <div style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-              flexWrap: 'wrap', gap: '16px', marginBottom: '24px',
-            }}>
+
+            {/* Modal détail commande */}
+            {selectedOrder && (
+              <div style={{
+                position: 'fixed', inset: 0, background: 'rgba(60,36,21,0.65)', zIndex: 200,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px',
+              }}
+                onClick={(e) => { if (e.target === e.currentTarget) setSelectedOrder(null); }}
+              >
+                <div style={{
+                  background: '#FFFCF8', border: '1px solid #D4C4B0',
+                  width: '100%', maxWidth: '640px', maxHeight: '90vh',
+                  overflowY: 'auto', padding: '36px 32px',
+                }}>
+                  {/* Entête modal */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px' }}>
+                    <div>
+                      <p style={{ fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', color: '#8A6B5C', marginBottom: '6px' }}>
+                        Commande
+                      </p>
+                      <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: '22px', fontWeight: 400, color: '#56352c', margin: 0 }}>
+                        #{(selectedOrder.stripeSessionId || selectedOrder.id || '').slice(-8).toUpperCase()}
+                      </h3>
+                    </div>
+                    <button onClick={() => setSelectedOrder(null)} style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      fontSize: '20px', color: '#8A6B5C', lineHeight: 1, padding: '4px',
+                    }}>×</button>
+                  </div>
+
+                  {/* Infos client */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px' }}>
+                    <div>
+                      <p style={{ fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', color: '#8A6B5C', marginBottom: '6px' }}>Client</p>
+                      <p style={{ fontSize: '14px', color: '#56352c', margin: 0 }}>{selectedOrder.customerName || selectedOrder.name || '—'}</p>
+                      <p style={{ fontSize: '13px', color: '#8A6B5C', margin: '4px 0 0' }}>{selectedOrder.customerEmail || selectedOrder.email || '—'}</p>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', color: '#8A6B5C', marginBottom: '6px' }}>Date</p>
+                      <p style={{ fontSize: '14px', color: '#56352c', margin: 0 }}>
+                        {formatOrderDate(selectedOrder.paidAt || selectedOrder.createdAt)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Adresse de livraison */}
+                  {selectedOrder.shippingAddress && (
+                    <div style={{ background: '#FAF7F4', border: '1px solid #EAE0D8', padding: '16px 20px', marginBottom: '24px' }}>
+                      <p style={{ fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', color: '#8A6B5C', marginBottom: '8px' }}>
+                        Adresse de livraison
+                      </p>
+                      <p style={{ fontSize: '14px', color: '#56352c', lineHeight: 1.7, margin: 0 }}>
+                        {selectedOrder.shippingAddress.line1}<br />
+                        {selectedOrder.shippingAddress.line2 && <>{selectedOrder.shippingAddress.line2}<br /></>}
+                        {selectedOrder.shippingAddress.postal_code} {selectedOrder.shippingAddress.city}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Articles */}
+                  <div style={{ marginBottom: '24px' }}>
+                    <p style={{ fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', color: '#8A6B5C', marginBottom: '12px' }}>Articles</p>
+                    {(selectedOrder.items || []).map((item, i) => (
+                      <div key={i} style={{
+                        display: 'flex', justifyContent: 'space-between',
+                        padding: '10px 0',
+                        borderBottom: i < (selectedOrder.items.length - 1) ? '1px solid #F0EAE4' : 'none',
+                      }}>
+                        <div>
+                          <span style={{ fontSize: '14px', color: '#56352c' }}>{item.name || item.description}</span>
+                          {item.variant && <span style={{ fontSize: '12px', color: '#8A6B5C', marginLeft: '8px' }}>— {item.variant}</span>}
+                        </div>
+                        <span style={{ fontSize: '14px', color: '#56352c' }}>
+                          ×{item.quantity || 1} · {typeof item.price === 'number' ? item.price.toFixed(2) : (item.amount || 0).toFixed(2)} €
+                        </span>
+                      </div>
+                    ))}
+                    <div style={{ textAlign: 'right', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #D4C4B0' }}>
+                      <span style={{ fontFamily: "'Playfair Display', serif", fontSize: '18px', color: '#620017' }}>
+                        {(selectedOrder.total || 0).toFixed(2)} €
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Numéro de suivi (si déjà expédié) */}
+                  {selectedOrder.trackingNumber && (
+                    <div style={{ background: '#EEF5FF', border: '1px solid #B5CEFF', padding: '14px 18px', marginBottom: '24px' }}>
+                      <p style={{ fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', color: '#185FA5', marginBottom: '6px' }}>
+                        Numéro de suivi La Poste
+                      </p>
+                      <p style={{ fontFamily: 'monospace', fontSize: '16px', fontWeight: 700, color: '#185FA5', letterSpacing: '2px', margin: 0 }}>
+                        {selectedOrder.trackingNumber}
+                      </p>
+                      <a
+                        href={`https://www.laposte.fr/outils/suivre-vos-envois?code=${selectedOrder.trackingNumber}`}
+                        target="_blank" rel="noopener noreferrer"
+                        style={{ fontSize: '12px', color: '#185FA5', display: 'inline-block', marginTop: '6px' }}
+                      >
+                        Voir le suivi →
+                      </a>
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  {selectedOrder.fulfillmentStatus !== 'cancelled' && (
+                    <div style={{ borderTop: '1px solid #D4C4B0', paddingTop: '24px' }}>
+                      <p style={{ fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', color: '#8A6B5C', marginBottom: '16px' }}>
+                        Actions
+                      </p>
+
+                      {/* Boutons de statut */}
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                        {[
+                          { status: 'preparing', label: '📦 En préparation' },
+                          { status: 'delivered', label: '✅ Marquer livré' },
+                        ].map(({ status, label }) => (
+                          <button
+                            key={status}
+                            disabled={statusUpdating === selectedOrder.id || selectedOrder.fulfillmentStatus === status}
+                            onClick={() => handleOrderAction(selectedOrder.id, status)}
+                            style={{
+                              ...btnPrimary, padding: '10px 18px', fontSize: '12px',
+                              opacity: (statusUpdating === selectedOrder.id || selectedOrder.fulfillmentStatus === status) ? 0.5 : 1,
+                            }}
+                            onMouseEnter={e => { if (selectedOrder.fulfillmentStatus !== status) e.currentTarget.style.background = '#620017'; }}
+                            onMouseLeave={e => e.currentTarget.style.background = '#56352c'}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Zone expédition avec numéro de suivi */}
+                      <div style={{ background: '#FAF7F4', border: '1px solid #EAE0D8', padding: '20px', marginBottom: '16px' }}>
+                        <p style={{ fontSize: '12px', color: '#8A6B5C', marginBottom: '12px', fontWeight: 500 }}>
+                          🚚 Marquer comme expédié
+                        </p>
+                        <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+                          <div style={{ flex: 1 }}>
+                            <label style={{ ...labelStyle, marginBottom: '6px' }}>
+                              Numéro de suivi La Poste (optionnel)
+                            </label>
+                            <input
+                              style={inputStyle}
+                              placeholder="Ex : 1A23456789876FR"
+                              value={trackingInput}
+                              onChange={e => setTrackingInput(e.target.value.toUpperCase())}
+                            />
+                          </div>
+                          <button
+                            disabled={statusUpdating === selectedOrder.id}
+                            onClick={() => handleOrderAction(selectedOrder.id, 'shipped', trackingInput.trim() || null)}
+                            style={{
+                              ...btnPrimary, padding: '11px 20px', fontSize: '12px', whiteSpace: 'nowrap',
+                              opacity: statusUpdating === selectedOrder.id ? 0.5 : 1,
+                            }}
+                            onMouseEnter={e => { if (statusUpdating !== selectedOrder.id) e.currentTarget.style.background = '#620017'; }}
+                            onMouseLeave={e => e.currentTarget.style.background = '#56352c'}
+                          >
+                            {statusUpdating === selectedOrder.id ? 'Envoi…' : 'Expédier + notifier'}
+                          </button>
+                        </div>
+                        <p style={{ fontSize: '11px', color: '#A89488', marginTop: '8px' }}>
+                          Un email avec le numéro de suivi sera automatiquement envoyé au client.
+                        </p>
+                      </div>
+
+                      {/* Annulation */}
+                      <button
+                        disabled={statusUpdating === selectedOrder.id}
+                        onClick={() => {
+                          if (window.confirm(`Annuler la commande de ${selectedOrder.customerEmail || selectedOrder.email} ?\nLe client recevra un email d'annulation.`)) {
+                            handleOrderAction(selectedOrder.id, 'cancelled');
+                          }
+                        }}
+                        style={{ ...btnDanger, padding: '10px 18px', fontSize: '12px' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#D44B4B'; e.currentTarget.style.color = '#FFFCF8'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#D44B4B'; }}
+                      >
+                        ❌ Annuler cette commande
+                      </button>
+                    </div>
+                  )}
+
+                  {selectedOrder.fulfillmentStatus === 'cancelled' && (
+                    <div style={{ background: '#FFF0F0', border: '1px solid #F5C4C4', padding: '14px 18px', marginTop: '16px' }}>
+                      <p style={{ fontSize: '13px', color: '#8B2020', margin: 0 }}>Cette commande a été annulée.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Entête section commandes */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
               <div>
                 <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '22px', fontWeight: 400, color: '#56352c', marginBottom: '8px' }}>
-                  Logistique & Commandes (Stripe)
+                  Commandes
                 </h2>
                 <p style={{ fontSize: '13px', color: '#8A6B5C', maxWidth: '520px', lineHeight: 1.6 }}>
-                  Les paiements réussis apparaissent ici. En local, cliquez sur « Synchroniser Stripe » après un test de paiement.
+                  Cliquez sur une commande pour la traiter, l&apos;expédier ou l&apos;annuler.
                 </p>
               </div>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  onClick={loadOrdersData}
-                  disabled={ordersLoading}
-                  style={{ ...btnPrimary, background: 'transparent', color: '#56352c', border: '1px solid #D4C4B0' }}
-                >
+                <button type="button" onClick={loadOrdersData} disabled={ordersLoading}
+                  style={{ ...btnPrimary, background: 'transparent', color: '#56352c', border: '1px solid #D4C4B0' }}>
                   {ordersLoading ? 'Chargement…' : 'Actualiser'}
                 </button>
-                <button
-                  type="button"
-                  onClick={handleSyncStripe}
-                  disabled={ordersSyncing}
+                <button type="button" onClick={handleSyncStripe} disabled={ordersSyncing}
                   style={{ ...btnPrimary, opacity: ordersSyncing ? 0.7 : 1 }}
-                  onMouseEnter={(e) => { if (!ordersSyncing) e.currentTarget.style.background = '#620017'; }}
-                  onMouseLeave={(e) => { if (!ordersSyncing) e.currentTarget.style.background = '#56352c'; }}
-                >
+                  onMouseEnter={e => { if (!ordersSyncing) e.currentTarget.style.background = '#620017'; }}
+                  onMouseLeave={e => { if (!ordersSyncing) e.currentTarget.style.background = '#56352c'; }}>
                   {ordersSyncing ? 'Sync…' : 'Synchroniser Stripe'}
                 </button>
               </div>
             </div>
 
-            {ordersError && (
-              <p style={{ color: '#D44B4B', fontSize: '14px', marginBottom: '20px' }}>{ordersError}</p>
-            )}
+            {ordersError && <p style={{ color: '#D44B4B', fontSize: '14px', marginBottom: '20px' }}>{ordersError}</p>}
 
+            {/* Tableau des commandes */}
             <div style={{ overflowX: 'auto', border: '1px solid #D4C4B0', marginBottom: '48px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
                 <thead>
                   <tr style={{ background: '#E8DCC4', borderBottom: '1px solid #D4C4B0' }}>
-                    {['Réf.', 'Date', 'Client', 'Articles', 'Montant', 'Paiement', 'Expédition', ''].map((h) => (
+                    {['Réf.', 'Date', 'Client', 'Montant', 'Statut', 'Suivi', ''].map(h => (
                       <th key={h} style={{ padding: '14px 18px', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: '#8A6B5C', textAlign: 'left' }}>{h}</th>
                     ))}
                   </tr>
@@ -765,88 +1036,93 @@ export default function AdminDashboard() {
                 <tbody>
                   {orders.length === 0 && !ordersLoading && (
                     <tr>
-                      <td colSpan={8} style={{ padding: '40px', textAlign: 'center', color: '#8A6B5C' }}>
-                        Aucune commande pour l&apos;instant. Faites un paiement test puis « Synchroniser Stripe ».
+                      <td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#8A6B5C' }}>
+                        Aucune commande. Faites un paiement test puis « Synchroniser Stripe ».
                       </td>
                     </tr>
                   )}
-                  {orders.map((o) => (
-                    <tr key={o.id} style={{ borderBottom: '1px solid #D4C4B0' }}>
-                      <td style={{ padding: '18px', fontWeight: 500, color: '#56352c' }}>{o.shortId || o.id}</td>
-                      <td style={{ padding: '18px', color: '#8A6B5C', whiteSpace: 'nowrap' }}>{formatOrderDate(o.paidAt || o.createdAt)}</td>
-                      <td style={{ padding: '18px', color: '#8A6B5C' }}>
-                        <div>{o.email || '—'}</div>
-                        {o.name && <div style={{ fontSize: '12px', color: '#A89488' }}>{o.name}</div>}
-                      </td>
-                      <td style={{ padding: '18px', color: '#56352c', maxWidth: '220px' }}>{o.item}</td>
-                      <td style={{ padding: '18px', fontWeight: 500 }}>{(o.total || 0).toFixed(2)} €</td>
-                      <td style={{ padding: '18px' }}>
-                        <span style={{
-                          background: o.paymentStatus === 'paid' ? '#E3EDDE' : '#F7F0DB',
-                          color: o.paymentStatus === 'paid' ? '#447334' : '#A3701A',
-                          padding: '4px 10px', fontSize: '11px', letterSpacing: '0.5px', textTransform: 'uppercase', fontWeight: 500,
-                        }}>
-                          {o.paymentStatus === 'paid' ? 'Payé' : o.paymentStatus || '—'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '18px' }}>
-                        <span style={{
-                          background: ['shipped', 'delivered'].includes(o.fulfillmentStatus) ? '#E3EDDE' : '#F7F0DB',
-                          color: ['shipped', 'delivered'].includes(o.fulfillmentStatus) ? '#447334' : '#A3701A',
-                          padding: '4px 10px', fontSize: '11px', letterSpacing: '0.5px', textTransform: 'uppercase', fontWeight: 500,
-                        }}>
-                          {({ pending: '⏳ En attente', preparing: '📦 En préparation', shipped: '🚚 Expédié', delivered: '✅ Livré' })[o.fulfillmentStatus] || '—'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '18px', textAlign: 'right' }}>
-                        <button
-                          type="button"
-                          onClick={() => toggleOrderStatus(o)}
-                          style={{ ...btnPrimary, padding: '8px 14px', fontSize: '11px' }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = '#620017'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = '#56352c'; }}
-                        >
-                          Changer le statut
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {orders.map(o => {
+                    const statusConfig = {
+                      pending:   { label: 'En attente',      bg: '#F7F0DB', color: '#A3701A' },
+                      preparing: { label: 'En préparation',  bg: '#EEF5FF', color: '#185FA5' },
+                      shipped:   { label: 'Expédié',          bg: '#E3EDDE', color: '#447334' },
+                      delivered: { label: 'Livré',            bg: '#E3EDDE', color: '#447334' },
+                      cancelled: { label: 'Annulée',          bg: '#FFF0F0', color: '#8B2020' },
+                    };
+                    const sc = statusConfig[o.fulfillmentStatus] || statusConfig.pending;
+
+                    return (
+                      <tr key={o.id} style={{ borderBottom: '1px solid #D4C4B0', cursor: 'pointer' }}
+                        onClick={() => openOrder(o)}
+                        onMouseEnter={e => e.currentTarget.style.background = '#FDFAF7'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                      >
+                        <td style={{ padding: '16px 18px', fontWeight: 500, color: '#56352c' }}>
+                          #{(o.stripeSessionId || o.shortId || o.id || '').slice(-8).toUpperCase()}
+                        </td>
+                        <td style={{ padding: '16px 18px', color: '#8A6B5C', whiteSpace: 'nowrap' }}>
+                          {formatOrderDate(o.paidAt || o.createdAt)}
+                        </td>
+                        <td style={{ padding: '16px 18px' }}>
+                          <div style={{ fontSize: '14px', color: '#56352c' }}>{o.customerEmail || o.email || '—'}</div>
+                          {(o.customerName || o.name) && <div style={{ fontSize: '12px', color: '#A89488' }}>{o.customerName || o.name}</div>}
+                        </td>
+                        <td style={{ padding: '16px 18px', fontWeight: 500, color: '#56352c' }}>
+                          {(o.total || 0).toFixed(2)} €
+                        </td>
+                        <td style={{ padding: '16px 18px' }}>
+                          <span style={{ background: sc.bg, color: sc.color, padding: '4px 10px', fontSize: '11px', letterSpacing: '0.5px', textTransform: 'uppercase', fontWeight: 500 }}>
+                            {sc.label}
+                          </span>
+                        </td>
+                        <td style={{ padding: '16px 18px' }}>
+                          {o.trackingNumber
+                            ? <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#185FA5', letterSpacing: '1px' }}>{o.trackingNumber}</span>
+                            : <span style={{ color: '#C4B4A4', fontSize: '12px' }}>—</span>
+                          }
+                        </td>
+                        <td style={{ padding: '16px 18px', textAlign: 'right' }}>
+                          <span style={{ fontSize: '12px', color: '#620017', textDecoration: 'underline' }}>
+                            Gérer →
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
 
+            {/* Tableau clients */}
             <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '22px', fontWeight: 400, color: '#56352c', marginBottom: '24px' }}>
-              Clients (ayant commandé)
+              Clients
             </h2>
             <div style={{ overflowX: 'auto', border: '1px solid #D4C4B0' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
                 <thead>
                   <tr style={{ background: '#E8DCC4', borderBottom: '1px solid #D4C4B0' }}>
-                    {['Email', 'Nom', 'Commandes', 'Total dépensé', 'Dernière commande'].map((h) => (
+                    {['Email', 'Nom', 'Commandes', 'Total dépensé', 'Dernière commande'].map(h => (
                       <th key={h} style={{ padding: '14px 18px', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: '#8A6B5C', textAlign: 'left' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {registeredClients.length === 0 && !ordersLoading && (
-                    <tr>
-                      <td colSpan={5} style={{ padding: '32px', textAlign: 'center', color: '#8A6B5C' }}>
-                        Aucun client pour l&apos;instant.
-                      </td>
-                    </tr>
+                    <tr><td colSpan={5} style={{ padding: '32px', textAlign: 'center', color: '#8A6B5C' }}>Aucun client pour l&apos;instant.</td></tr>
                   )}
-                  {registeredClients.map((c) => (
+                  {registeredClients.map(c => (
                     <tr key={c.id} style={{ borderBottom: '1px solid #D4C4B0' }}>
                       <td style={{ padding: '14px 18px', fontWeight: 500, color: '#56352c' }}>{c.email}</td>
                       <td style={{ padding: '14px 18px', color: '#8A6B5C' }}>{c.name || '—'}</td>
                       <td style={{ padding: '14px 18px', color: '#56352c' }}>{c.orderCount}</td>
-                      <td style={{ padding: '14px 18px', fontWeight: 500 }}>{(c.totalSpent || 0).toFixed(2)} €</td>
-                      <td style={{ padding: '14px 18px', color: '#8A6B5C' }}>{formatOrderDate(c.lastOrderAt)}</td>
+                      <td style={{ padding: '14px 18px', color: '#620017', fontWeight: 500 }}>{(c.totalSpent || 0).toFixed(2)} €</td>
+                      <td style={{ padding: '14px 18px', color: '#8A6B5C', whiteSpace: 'nowrap' }}>{formatOrderDate(c.lastOrderAt)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+
           </div>
         )}
 
@@ -1220,6 +1496,89 @@ export default function AdminDashboard() {
           .promo-cards-wrap { display: block; }
         }
       `}</style>
+
+        {/* ─── ONGLET AVIS ─── */}
+        {tab === 'reviews' && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '32px', flexWrap: 'wrap', gap: '16px' }}>
+              <div>
+                <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '22px', fontWeight: 400, color: '#56352c', marginBottom: '6px' }}>
+                  Avis en attente
+                </h2>
+                <p style={{ fontSize: '13px', color: '#8A6B5C' }}>
+                  Publiez les avis que vous souhaitez afficher sur la page d&apos;accueil.
+                </p>
+              </div>
+              <button style={btnGold} onClick={loadPendingReviews}
+                onMouseEnter={e => { e.currentTarget.style.background = '#620017'; e.currentTarget.style.color = '#FFFCF8'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#620017'; }}>
+                Actualiser
+              </button>
+            </div>
+
+            {reviewsLoading && (
+              <p style={{ color: '#8A6B5C', fontSize: '14px' }}>Chargement...</p>
+            )}
+            {reviewsError && (
+              <div style={{ background: '#FDF2F2', border: '1px solid #E8BCBC', padding: '14px 18px', color: '#8B3333', fontSize: '13px', marginBottom: '24px' }}>
+                {reviewsError}
+              </div>
+            )}
+
+            {!reviewsLoading && pendingReviews.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '64px 24px', border: '1px solid #D4C4B0', color: '#8A6B5C' }}>
+                <div style={{ fontSize: '28px', marginBottom: '16px' }}>✦</div>
+                <p style={{ fontSize: '15px', marginBottom: '8px', color: '#56352c' }}>Aucun avis en attente</p>
+                <p style={{ fontSize: '13px' }}>Les avis soumis via le formulaire apparaîtront ici.</p>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {pendingReviews.map((review) => (
+                <div key={review.id} style={{ border: '1px solid #D4C4B0', background: '#FFFCF8', padding: '24px 28px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', gap: '2px', marginBottom: '10px' }}>
+                        {[1,2,3,4,5].map(s => (
+                          <span key={s} style={{ fontSize: '14px', color: s <= review.rating ? '#620017' : '#D4C4B0' }}>★</span>
+                        ))}
+                      </div>
+                      <p style={{ fontFamily: "'Playfair Display', serif", fontSize: '15px', color: '#56352c', lineHeight: 1.7, marginBottom: '14px', fontStyle: 'italic' }}>
+                        « {review.text} »
+                      </p>
+                      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 500, color: '#56352c' }}>{review.author}</span>
+                        {review.location && <span style={{ fontSize: '13px', color: '#8A6B5C' }}>{review.location}</span>}
+                        {review.orderRef && <span style={{ fontSize: '12px', color: '#A89488' }}>Réf : {review.orderRef}</span>}
+                        <span style={{ fontSize: '12px', color: '#A89488' }}>
+                          Reçu le {new Date(review.submittedAt).toLocaleDateString('fr-FR')}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px', flexShrink: 0 }}>
+                      <button
+                        style={{ ...btnPrimary, padding: '9px 18px', fontSize: '11px', whiteSpace: 'nowrap' }}
+                        onClick={() => handlePublishReview(review.id)}
+                        onMouseEnter={e => e.currentTarget.style.background = '#620017'}
+                        onMouseLeave={e => e.currentTarget.style.background = '#56352c'}
+                      >
+                        Publier
+                      </button>
+                      <button
+                        style={{ ...btnDanger, padding: '9px 18px', fontSize: '11px', whiteSpace: 'nowrap' }}
+                        onClick={() => handleRefuseReview(review.id)}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#D44B4B'; e.currentTarget.style.color = '#FFFCF8'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#D44B4B'; }}
+                      >
+                        Refuser
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
     </div>
   );
 }
