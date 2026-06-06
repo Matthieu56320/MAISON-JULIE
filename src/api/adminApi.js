@@ -46,10 +46,12 @@ export function syncStripeOrders() {
   return adminFetch('/api/admin/sync-stripe', { method: 'POST' });
 }
 
-export function updateOrderFulfillment(orderId, fulfillmentStatus) {
+export function updateOrderFulfillment(orderId, fulfillmentStatus, trackingNumber = null) {
+  const body = { fulfillmentStatus };
+  if (trackingNumber) body.trackingNumber = trackingNumber;
   return adminFetch(`/api/admin/orders/${encodeURIComponent(orderId)}`, {
     method: 'PATCH',
-    body: JSON.stringify({ fulfillmentStatus }),
+    body: JSON.stringify(body),
   });
 }
 

@@ -4,15 +4,21 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Stripe from 'stripe';
-import { loadOrders, updateOrderFulfillment } from './ordersStore.js';
+import { loadOrders, loadOrdersFromFirestore, updateOrderFulfillment, updateOrderFulfillmentAnywhere, cancelOrder } from './ordersStore.js';
 import {
   persistOrderFromSession,
   syncPaidSessionsFromStripe,
   buildCustomersFromOrders,
 } from './stripeOrders.js';
-import { sendOrderStatusNotification, sendContactFormEmail } from './emailService.js';
+import {
+  sendOrderConfirmation,
+  sendShippingNotification,
+  sendOrderStatusNotification,
+  sendContactFormEmail,
+} from './emailService.js';
 import { loadCatalog, saveCatalog } from './catalogStore.js';
 import { loadSiteConfig, saveSiteConfig } from './siteConfigStore.js';
+import { addPendingReview, loadPendingReviews, deletePendingReview } from './reviewsStore.js';
 
 const secretKey = process.env.STRIPE_SECRET_KEY;
 if (!secretKey) {
@@ -37,7 +43,6 @@ app.use(express.static(staticDir));
 console.log('[SERVER] Démarrage avec CLIENT_URL:', CLIENT_URL);
 console.log('[SERVER] GMAIL_USER:', process.env.GMAIL_USER ? '✓ configuré' : '✗ MANQUANT');
 console.log('[SERVER] STRIPE_SECRET_KEY:', secretKey ? '✓ configuré' : '✗ MANQUANT');
-console.log('[SERVER] Static dir:', staticDir);
 
 function requireAdmin(req, res, next) {
   const key = req.headers['x-admin-key'];
@@ -79,7 +84,6 @@ function buildLineItems(items, deliveryMode = 'delivery') {
     };
   });
 
-  // Frais de livraison : uniquement si livraison à domicile
   if (deliveryMode !== 'pickup') {
     lineItems.push({
       price_data: {
@@ -103,7 +107,8 @@ function buildLineItems(items, deliveryMode = 'delivery') {
   return lineItems;
 }
 
-// Webhook Stripe (body brut — avant express.json)
+// ── Webhook Stripe ─────────────────────────────────────────────────────────────
+
 app.post(
   '/api/stripe/webhook',
   express.raw({ type: 'application/json' }),
@@ -126,8 +131,11 @@ app.post(
     try {
       if (event.type === 'checkout.session.completed') {
         const session = event.data.object;
-        await persistOrderFromSession(stripe, session.id);
+        const order = await persistOrderFromSession(stripe, session.id);
         console.log('[webhook] Commande enregistrée:', session.id);
+        if (order) {
+          await sendOrderConfirmation(order);
+        }
       }
     } catch (err) {
       console.error('[webhook] Traitement', err);
@@ -138,9 +146,9 @@ app.post(
   },
 );
 
-app.get('/api/health', (_req, res) => {
-  res.json({ ok: true });
-});
+// ── Routes publiques ───────────────────────────────────────────────────────────
+
+app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
 app.post('/api/record-order', async (req, res) => {
   try {
@@ -152,6 +160,7 @@ app.post('/api/record-order', async (req, res) => {
     if (!order) {
       return res.status(400).json({ error: 'Paiement non confirmé' });
     }
+    await sendOrderConfirmation(order);
     res.json({ ok: true, order });
   } catch (err) {
     console.error('[record-order]', err);
@@ -160,36 +169,26 @@ app.post('/api/record-order', async (req, res) => {
 });
 
 app.post('/api/create-checkout-session', async (req, res) => {
-  console.log('[POST /api/create-checkout-session] Reçu');
-  console.log('[POST /api/create-checkout-session] Body:', JSON.stringify(req.body).substring(0, 200));
   try {
     const { items = [], deliveryMode = 'delivery', promoCode } = req.body || {};
-    console.log('[POST /api/create-checkout-session] Items count:', items.length, '| Mode:', deliveryMode);
-    const line_items = buildLineItems(items, deliveryMode);
+    const lineItems = buildLineItems(items, deliveryMode);
 
-    // Résoudre le code promo Stripe si fourni
-    let discounts = undefined;
+    let discounts;
     if (promoCode) {
-      try {
-        const coupons = await stripe.promotionCodes.list({ code: promoCode, active: true, limit: 1 });
-        if (coupons.data.length > 0) {
-          discounts = [{ promotion_code: coupons.data[0].id }];
-        } else {
-          console.warn('[checkout] Code promo introuvable ou inactif:', promoCode);
-        }
-      } catch (promoErr) {
-        console.warn('[checkout] Erreur code promo:', promoErr.message);
+      const codes = await stripe.promotionCodes.list({ code: promoCode, active: true, limit: 1 });
+      if (codes.data.length > 0) {
+        discounts = [{ promotion_code: codes.data[0].id }];
       }
     }
 
     const sessionParams = {
+      payment_method_types: ['card'],
+      line_items: lineItems,
       mode: 'payment',
-      line_items,
-      success_url: `${CLIENT_URL}/commande/merci?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${CLIENT_URL}/panier?annule=1`,
-      billing_address_collection: 'required',
-      locale: 'fr',
-      customer_creation: 'always',
+      success_url: `${CLIENT_URL}/commande-confirmee?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${CLIENT_URL}/panier`,
+      customer_email: req.body.customerEmail || undefined,
+      phone_number_collection: { enabled: true },
       metadata: {
         source: 'maison-julie',
         item_count: String(items.length),
@@ -197,14 +196,10 @@ app.post('/api/create-checkout-session', async (req, res) => {
       },
     };
 
-    // Livraison à domicile : collecte d'adresse + codes promo activés
     if (deliveryMode === 'delivery') {
       sessionParams.shipping_address_collection = { allowed_countries: ['FR'] };
-      // allow_promotion_codes uniquement si pas de discount manuel
       if (!discounts) sessionParams.allow_promotion_codes = true;
-    }
-    // Retrait : pas d'adresse de livraison, codes promo quand même activés
-    else {
+    } else {
       if (!discounts) sessionParams.allow_promotion_codes = true;
     }
 
@@ -219,11 +214,88 @@ app.post('/api/create-checkout-session', async (req, res) => {
   }
 });
 
-// ── Admin (commandes & clients Stripe) ──
+// ── Contact ────────────────────────────────────────────────────────────────────
+
+app.post('/api/contact/send', async (req, res) => {
+  try {
+    const { name, email, phone, message } = req.body || {};
+    if (!name || !email || !message) {
+      return res.status(400).json({ error: 'Tous les champs requis sont manquants' });
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Email invalide' });
+    }
+    const sent = await sendContactFormEmail({ name, email, phone, message });
+    if (!sent) return res.status(500).json({ error: "Impossible d'envoyer le message" });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[contact]', err);
+    res.status(500).json({ error: 'Une erreur est survenue' });
+  }
+});
+
+// ── Avis ───────────────────────────────────────────────────────────────────────
+
+app.post('/api/reviews', async (req, res) => {
+  try {
+    const { author, location, rating, text, orderRef } = req.body || {};
+    if (!author?.trim()) return res.status(400).json({ error: 'Le prénom et nom sont requis.' });
+    if (!text?.trim() || text.trim().length < 20) {
+      return res.status(400).json({ error: 'Le témoignage doit faire au moins 20 caractères.' });
+    }
+    const review = await addPendingReview({ author, location, rating, text, orderRef });
+    res.json({ ok: true, review });
+  } catch (err) {
+    console.error('[POST /api/reviews]', err);
+    res.status(500).json({ error: "Impossible d'enregistrer votre avis." });
+  }
+});
+
+app.get('/api/admin/reviews', requireAdmin, async (_req, res) => {
+  try {
+    res.json({ reviews: await loadPendingReviews() });
+  } catch (err) {
+    res.status(500).json({ error: 'Impossible de charger les avis.' });
+  }
+});
+
+app.post('/api/admin/reviews/:id/publish', requireAdmin, async (req, res) => {
+  try {
+    const reviews = await loadPendingReviews();
+    const review = reviews.find((r) => r.id === req.params.id);
+    if (!review) return res.status(404).json({ error: 'Avis introuvable.' });
+    const config = await loadSiteConfig();
+    const items = config.reviews?.items ?? [];
+    const published = { id: review.id, author: review.author, location: review.location, rating: review.rating, text: review.text, date: review.date };
+    config.reviews = {
+      ...(config.reviews ?? { enabled: true, eyebrow: 'Témoignages', title: "Ce qu'elles disent" }),
+      items: [...items, published],
+    };
+    await saveSiteConfig(config);
+    await deletePendingReview(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[POST /api/admin/reviews/:id/publish]', err);
+    res.status(500).json({ error: "Impossible de publier l'avis." });
+  }
+});
+
+app.delete('/api/admin/reviews/:id', requireAdmin, async (req, res) => {
+  try {
+    await deletePendingReview(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Impossible de supprimer l'avis." });
+  }
+});
+
+// ── Admin : commandes ─────────────────────────────────────────────────────────
 
 app.get('/api/admin/orders', requireAdmin, async (_req, res) => {
   try {
-    const orders = await loadOrders();
+    // Priorité Firestore, fallback JSON local
+    const orders = await loadOrdersFromFirestore();
     res.json({ orders });
   } catch (err) {
     console.error('[admin/orders]', err);
@@ -233,11 +305,9 @@ app.get('/api/admin/orders', requireAdmin, async (_req, res) => {
 
 app.get('/api/admin/customers', requireAdmin, async (_req, res) => {
   try {
-    const orders = await loadOrders();
-    const customers = buildCustomersFromOrders(orders);
-    res.json({ customers });
+    const orders = await loadOrdersFromFirestore();
+    res.json({ customers: buildCustomersFromOrders(orders) });
   } catch (err) {
-    console.error('[admin/customers]', err);
     res.status(500).json({ error: 'Impossible de charger les clients' });
   }
 });
@@ -245,27 +315,39 @@ app.get('/api/admin/customers', requireAdmin, async (_req, res) => {
 app.post('/api/admin/sync-stripe', requireAdmin, async (_req, res) => {
   try {
     const synced = await syncPaidSessionsFromStripe(stripe, 50);
-    const orders = await loadOrders();
+    const orders = await loadOrdersFromFirestore();
     const customers = buildCustomersFromOrders(orders);
     res.json({ synced, orders, customers });
   } catch (err) {
-    console.error('[admin/sync]', err);
     res.status(500).json({ error: err.message || 'Synchronisation Stripe échouée' });
   }
 });
 
+// ── PATCH commande : changement de statut + numéro de suivi ──────────────────
+
 app.patch('/api/admin/orders/:id', requireAdmin, async (req, res) => {
   try {
-    const { fulfillmentStatus } = req.body || {};
-    if (!['pending', 'preparing', 'shipped', 'delivered'].includes(fulfillmentStatus)) {
+    const { fulfillmentStatus, trackingNumber } = req.body || {};
+    const validStatuses = ['pending', 'preparing', 'shipped', 'delivered', 'cancelled'];
+
+    if (!validStatuses.includes(fulfillmentStatus)) {
       return res.status(400).json({ error: 'Statut invalide' });
     }
-    const updated = await updateOrderFulfillment(req.params.id, fulfillmentStatus);
-    if (!updated) {
-      return res.status(404).json({ error: 'Commande introuvable' });
+
+    const updated = await updateOrderFulfillmentAnywhere(
+      req.params.id,
+      fulfillmentStatus,
+      trackingNumber ?? null,
+    );
+
+    if (!updated) return res.status(404).json({ error: 'Commande introuvable' });
+
+    if (fulfillmentStatus === 'shipped') {
+      await sendShippingNotification(updated, trackingNumber || null);
+    } else {
+      await sendOrderStatusNotification(updated, fulfillmentStatus);
     }
-    // Envoyer un email de notification au client
-    await sendOrderStatusNotification(updated, fulfillmentStatus);
+
     res.json({ order: updated });
   } catch (err) {
     console.error('[admin/patch order]', err);
@@ -273,43 +355,12 @@ app.patch('/api/admin/orders/:id', requireAdmin, async (req, res) => {
   }
 });
 
-// API Contact - envoyer un email
-app.post('/api/contact/send', async (req, res) => {
-  console.log('[POST /api/contact/send] Reçu');
-  console.log('[POST /api/contact/send] Body:', JSON.stringify(req.body).substring(0, 200));
-  try {
-    const { name, email, phone, message } = req.body || {};
-    
-    // Validation
-    if (!name || !email || !message) {
-      return res.status(400).json({ error: 'Tous les champs requis sont manquants' });
-    }
-
-    // Vérifier le format email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({ error: 'Email invalide' });
-    }
-
-    // Envoyer l'email
-    const sent = await sendContactFormEmail({ name, email, phone, message });
-    if (!sent) {
-      return res.status(500).json({ error: 'Impossible d\'envoyer le message' });
-    }
-
-    res.json({ ok: true, message: 'Email envoyé avec succès' });
-  } catch (err) {
-    console.error('[contact]', err);
-    res.status(500).json({ error: 'Une erreur est survenue' });
-  }
-});
+// ── Admin : catalogue ─────────────────────────────────────────────────────────
 
 app.get('/api/catalog', async (_req, res) => {
   try {
-    const catalog = await loadCatalog();
-    res.json(catalog);
+    res.json(await loadCatalog());
   } catch (err) {
-    console.error('[GET /api/catalog]', err);
     res.status(500).json({ error: 'Impossible de charger le catalogue' });
   }
 });
@@ -323,19 +374,17 @@ app.post('/api/admin/catalog', requireAdmin, async (req, res) => {
     await saveCatalog({ products, collections });
     res.json({ ok: true });
   } catch (err) {
-    console.error('[POST /api/admin/catalog]', err);
-    res.status(500).json({ error: 'Impossible d\'enregistrer le catalogue' });
+    res.status(500).json({ error: "Impossible d'enregistrer le catalogue" });
   }
 });
 
-// ── Admin : gestion des codes promo Stripe ──
+// ── Admin : codes promo ───────────────────────────────────────────────────────
 
 app.get('/api/admin/promo-codes', requireAdmin, async (_req, res) => {
   try {
     const codes = await stripe.promotionCodes.list({ limit: 50, expand: ['data.coupon'] });
     res.json({ promoCodes: codes.data });
   } catch (err) {
-    console.error('[admin/promo-codes GET]', err);
     res.status(500).json({ error: 'Impossible de charger les codes promo' });
   }
 });
@@ -346,30 +395,20 @@ app.post('/api/admin/promo-codes', requireAdmin, async (req, res) => {
     if (!code || !discountType || !discountValue) {
       return res.status(400).json({ error: 'code, discountType et discountValue sont requis' });
     }
-
-    // Étape 1 : créer le coupon
     const couponParams = {};
     if (discountType === 'percent') {
       couponParams.percent_off = Number(discountValue);
-      // pas de currency pour percent_off
     } else {
       couponParams.amount_off = Math.round(Number(discountValue) * 100);
-      couponParams.currency = 'eur'; // obligatoire uniquement pour amount_off
+      couponParams.currency = 'eur';
     }
     const coupon = await stripe.coupons.create(couponParams);
-
-    // Étape 2 : créer le code promo lié au coupon
-    const promoParams = {
-      coupon_id: coupon.id,
-      code: String(code).toUpperCase().trim(),
-    };
+    const promoParams = { coupon_id: coupon.id, code: String(code).toUpperCase().trim() };
     if (maxRedemptions) promoParams.max_redemptions = Number(maxRedemptions);
     if (expiresAt) promoParams.expires_at = Math.floor(new Date(expiresAt).getTime() / 1000);
-
     const promoCode = await stripe.promotionCodes.create(promoParams);
     res.json({ promoCode });
   } catch (err) {
-    console.error('[admin/promo-codes POST]', err);
     res.status(500).json({ error: err.message || 'Impossible de créer le code promo' });
   }
 });
@@ -379,17 +418,16 @@ app.patch('/api/admin/promo-codes/:id/deactivate', requireAdmin, async (req, res
     const updated = await stripe.promotionCodes.update(req.params.id, { active: false });
     res.json({ promoCode: updated });
   } catch (err) {
-    console.error('[admin/promo-codes PATCH]', err);
     res.status(500).json({ error: 'Impossible de désactiver le code promo' });
   }
 });
 
+// ── Config site ───────────────────────────────────────────────────────────────
+
 app.get('/api/site-config', async (_req, res) => {
   try {
-    const config = await loadSiteConfig();
-    res.json(config);
+    res.json(await loadSiteConfig());
   } catch (err) {
-    console.error('[GET /api/site-config]', err);
     res.status(500).json({ error: 'Impossible de charger la configuration' });
   }
 });
@@ -403,14 +441,11 @@ app.post('/api/admin/site-config', requireAdmin, async (req, res) => {
     await saveSiteConfig(config);
     res.json({ ok: true });
   } catch (err) {
-    console.error('[POST /api/admin/site-config]', err);
-    res.status(500).json({ error: 'Impossible d\'enregistrer la configuration' });
+    res.status(500).json({ error: "Impossible d'enregistrer la configuration" });
   }
 });
 
-app.get('/api/health', (_req, res) => {
-  res.json({ ok: true });
-});
+// ── Fallback SPA ───────────────────────────────────────────────────────────────
 
 app.use((req, res) => {
   if (req.path.startsWith('/api/')) {
@@ -422,6 +457,6 @@ app.use((req, res) => {
 app.listen(PORT, () => {
   console.log(`API Stripe → http://localhost:${PORT}`);
   if (!WEBHOOK_SECRET) {
-    console.log('  → Sans webhook : utilisez « Synchroniser Stripe » dans l’admin ou Stripe CLI');
+    console.log("  → Sans webhook : utilisez « Synchroniser Stripe » dans l'admin ou Stripe CLI");
   }
 });
