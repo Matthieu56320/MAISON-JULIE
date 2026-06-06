@@ -12,6 +12,7 @@ import Catalog from './pages/catalog';
 import ProductDetail from './pages/ProductDetail';
 import Contact from './pages/contact';
 import Cart from './pages/cart';
+import Register from './pages/Register';
 import CheckoutSuccess from './pages/CheckoutSuccess';
 import Legal from './pages/Legal';
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -36,6 +37,7 @@ function AppShell() {
           <Route path="/avis" element={<ReviewFormPage />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/panier" element={<Cart />} />
+          <Route path="/inscription" element={<Register />} />
           <Route path="/commande/merci" element={<CheckoutSuccess />} />
           <Route path="/cgv" element={<Legal type="cgv" />} />
           <Route path="/mot-de-passe-oublie" element={<ForgotPassword />} />
