@@ -201,7 +201,7 @@ export default function Cart() {
                 <strong>Retrait sur place (Gratuit)</strong>
                 <div style={{ fontSize: '12px', color: C.muted, marginTop: '2px', lineHeight: 1.4 }}>
                   À l'adresse : <br />
-                  <span style={{ color: C.chocolate, fontWeight: 500 }}>8 rue Joseph Fortuné<br />56320 Le Faouët</span>
+                  <span style={{ color: C.chocolate, fontWeight: 500 }}>8 rue Joseph Fortune<br />56320 Le Faouët</span>
                 </div>
                 <div style={{ fontSize: '11px', color: C.bordeaux, marginTop: '6px', fontStyle: 'italic' }}>
                   Aux horaires d'ouverture
