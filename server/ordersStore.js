@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, 'data');
@@ -209,4 +210,27 @@ export async function updateOrderFulfillmentAnywhere(id, fulfillmentStatus, trac
 
   // 2. Fallback JSON local
   return updateOrderFulfillment(id, fulfillmentStatus, trackingNumber);
+}
+
+// ── Utilisateurs Firebase Auth (dashboard admin) ───────────────────────────────
+
+export async function listFirebaseUsers() {
+  try {
+    // S'assure que Firebase Admin est initialisé
+    getAdminDb();
+    const auth = getAuth();
+    const result = await auth.listUsers(1000);
+    return result.users.map((u) => ({
+      uid:          u.uid,
+      email:        u.email || null,
+      displayName:  u.displayName || null,
+      photoURL:     u.photoURL || null,
+      createdAt:    u.metadata.creationTime || null,
+      lastSignIn:   u.metadata.lastSignInTime || null,
+      provider:     u.providerData?.[0]?.providerId || 'email',
+    }));
+  } catch (err) {
+    console.error('[ordersStore] Erreur listFirebaseUsers:', err.message);
+    return [];
+  }
 }
