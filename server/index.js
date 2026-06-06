@@ -400,6 +400,8 @@ app.post('/api/admin/promo-codes', requireAdmin, async (req, res) => {
     if (!code || !discountType || !discountValue) {
       return res.status(400).json({ error: 'code, discountType et discountValue sont requis' });
     }
+
+    // 1. Création du coupon de base
     const couponParams = {};
     if (discountType === 'percent') {
       couponParams.percent_off = Number(discountValue);
@@ -409,15 +411,26 @@ app.post('/api/admin/promo-codes', requireAdmin, async (req, res) => {
     }
     const coupon = await stripe.coupons.create(couponParams);
 
+    // 2. Création du code de promotion avec la syntaxe universelle imbriquée
     const promoParams = { 
       code: String(code).toUpperCase().trim(),
-      coupon: coupon.id
+      coupon: coupon.id // Mis à la racine mais SANS le suffixe _id
     };
+    
     if (maxRedemptions) promoParams.max_redemptions = Number(maxRedemptions);
     if (expiresAt) promoParams.expires_at = Math.floor(new Date(expiresAt).getTime() / 1000);
-    const promoCode = await stripe.promotionCodes.create(promoParams);
+
+    // Si ton SDK Stripe rejette tout, on force l'objet de cette manière :
+    const promoCode = await stripe.promotionCodes.create({
+      code: String(code).toUpperCase().trim(),
+      coupon: coupon.id,
+      ...(maxRedemptions && { max_redemptions: Number(maxRedemptions) }),
+      ...(expiresAt && { expires_at: Math.floor(new Date(expiresAt).getTime() / 1000) })
+    });
+
     res.json({ promoCode });
   } catch (err) {
+    console.error('[Stripe Promo Error]', err);
     res.status(500).json({ error: err.message || 'Impossible de créer le code promo' });
   }
 });
