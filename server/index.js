@@ -408,7 +408,7 @@ app.post('/api/admin/promo-codes', requireAdmin, async (req, res) => {
       couponParams.currency = 'eur';
     }
     const coupon = await stripe.coupons.create(couponParams);
-    const promoParams = { coupon_id: coupon.id, code: String(code).toUpperCase().trim() };
+    const promoParams = { coupon: coupon.id, code: String(code).toUpperCase().trim() };
     if (maxRedemptions) promoParams.max_redemptions = Number(maxRedemptions);
     if (expiresAt) promoParams.expires_at = Math.floor(new Date(expiresAt).getTime() / 1000);
     const promoCode = await stripe.promotionCodes.create(promoParams);
