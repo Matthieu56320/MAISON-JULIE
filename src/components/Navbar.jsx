@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useConfig } from '../context/ConfigContext';
+import { useAuth } from '../context/AuthContext'; // ✦ Import du contexte d'authentification
 
 export default function Navbar() {
   const { totalItems } = useCart();
   const { siteConfig } = useConfig();
+  const { user } = useAuth(); // ✦ Récupération de l'utilisateur connecté
   const location = useLocation();
   const { announcement } = siteConfig;
   const [scrolled, setScrolled] = useState(false);
@@ -35,6 +37,9 @@ export default function Navbar() {
   const navBorder = (!isHome || scrolled)
     ? '1px solid #D4C4B0'
     : '1px solid transparent';
+
+  // ✦ Détermination du lien du compte selon l'état Firebase
+  const accountLink = user ? '/mon-compte' : '/connexion';
 
   return (
     <>
@@ -105,14 +110,14 @@ export default function Navbar() {
         }
         .mj-mobile-link:hover { color: #620017; }
 
-        .mj-cart-btn {
+        .mj-icon-btn {
           background: none; border: none; cursor: pointer;
           position: relative; padding: 0;
           display: flex; align-items: center;
           transition: opacity 0.2s;
           text-decoration: none;
         }
-        .mj-cart-btn:hover { opacity: 0.55; }
+        .mj-icon-btn:hover { opacity: 0.55; }
 
         .mj-hamburger {
           display: none;
@@ -196,9 +201,19 @@ export default function Navbar() {
             ))}
           </div>
 
-          {/* Droite : panier + burger */}
+          {/* Droite : compte + panier + burger */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-            <Link to="/panier" className="mj-cart-btn" aria-label="Panier">
+            
+            {/* ✦ Icône Compte / Profil */}
+            <Link to={accountLink} className="mj-icon-btn" aria-label="Mon compte">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={user ? "#620017" : "#56352c"} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            </Link>
+
+            {/* Icône Panier */}
+            <Link to="/panier" className="mj-icon-btn" aria-label="Panier">
               <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#56352c" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
                 <line x1="3" y1="6" x2="21" y2="6"/>
@@ -259,6 +274,15 @@ export default function Navbar() {
             </Link>
           ))}
 
+          {/* ✦ Lien Compte Mobile */}
+          <Link
+            to={accountLink}
+            className="mj-mobile-link"
+            style={{ animationDelay: `${navLinks.length * 70}ms` }}
+          >
+            {user ? 'Mon Compte' : 'Se Connecter'}
+          </Link>
+
           <Link
             to="/panier"
             className="mj-mobile-link"
@@ -267,9 +291,9 @@ export default function Navbar() {
               fontSize: '14px',
               letterSpacing: '2.5px',
               textTransform: 'uppercase',
-              color: '#620017',
+              color: '#E8DCC4',
               fontFamily: "'DM Sans', sans-serif",
-              animationDelay: '210ms',
+              animationDelay: `${(navLinks.length + 1) * 70}ms`,
             }}
           >
             Panier {totalItems > 0 ? `(${totalItems})` : ''}

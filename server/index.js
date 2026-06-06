@@ -341,14 +341,19 @@ app.patch('/api/admin/orders/:id', requireAdmin, async (req, res) => {
     );
 
     if (!updated) return res.status(404).json({ error: 'Commande introuvable' });
+    
+    res.json({ order: updated });
 
     if (fulfillmentStatus === 'shipped') {
-      await sendShippingNotification(updated, trackingNumber || null);
+      sendShippingNotification(updated, trackingNumber || null)
+        .then(() => console.log('[email] Expédition envoyée OK'))
+        .catch(err => console.error('[email ERREUR expédition]', err));
     } else {
-      await sendOrderStatusNotification(updated, fulfillmentStatus);
+      sendOrderStatusNotification(updated, fulfillmentStatus)
+        .then(() => console.log('[email] Statut envoyé OK'))
+        .catch(err => console.error('[email ERREUR statut]', err));
     }
 
-    res.json({ order: updated });
   } catch (err) {
     console.error('[admin/patch order]', err);
     res.status(500).json({ error: 'Mise à jour impossible' });
