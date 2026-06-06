@@ -164,7 +164,7 @@ export async function sendOrderConfirmation(order) {
     `;
 
     const { error } = await resend.emails.send({
-      from: 'Maison Julie <onboarding@resend.dev>', // ⚠️ À modifier si tu as un domaine personnalisé configuré sur Resend
+      from: 'Maison Julie <contact@maison-julie-studio.fr>',
       to: [order.customerEmail],
       subject: `✦ Commande confirmée #${orderNum} — Maison Julie`,
       html,
@@ -248,7 +248,7 @@ export async function sendShippingNotification(order, trackingNumber) {
     `;
 
     const { error } = await resend.emails.send({
-      from: 'Maison Julie <onboarding@resend.dev>',
+      from: 'Maison Julie <contact@maison-julie-studio.fr>',
       to: [order.customerEmail],
       subject: `📦 Votre colis est expédié #${orderNum} — Maison Julie`,
       html,
@@ -318,7 +318,7 @@ export async function sendOrderStatusNotification(order, newStatus) {
     `;
 
     const { error } = await resend.emails.send({
-      from: 'Maison Julie <onboarding@resend.dev>',
+      from: 'Maison Julie <contact@maison-julie-studio.fr>',
       to: [order.customerEmail],
       subject: `${s.emoji} Commande #${orderNum} — ${s.label}`,
       html,
@@ -345,7 +345,7 @@ export async function sendContactFormEmail(formData) {
     if (!resend || !ownerEmail) return false;
 
     const { error } = await resend.emails.send({
-      from: 'Maison Julie <onboarding@resend.dev>',
+      from: 'Maison Julie <contact@maison-julie-studio.fr>',
       to: [ownerEmail],
       replyTo: formData.email, // Permet à ta sœur de répondre directement au client en cliquant sur "Répondre"
       subject: `Nouveau message de contact — ${formData.name}`,
