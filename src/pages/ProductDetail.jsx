@@ -7,6 +7,9 @@ import ProductRecommendations from '../components/ProductRecommendations';
 import PageMeta from '../components/PageMeta';
 import { C } from '../theme/colors';
 
+// Liste des tailles récupérées de ton guide
+const RING_SIZES = ['44', '46', '48', '50', '52', '54', '56', '58', '60', '62'];
+
 export default function ProductDetail() {
   const { id } = useParams();
   const { products } = useProducts();
@@ -16,6 +19,9 @@ export default function ProductDetail() {
   const product = products.find((p) => String(p.id) === String(id));
   const [activeImg, setActiveImg] = useState(0);
   const [justAdded, setJustAdded] = useState(false);
+  
+  // État pour stocker la taille sélectionnée (par défaut 52)
+  const [selectedSize, setSelectedSize] = useState('52');
 
   if (!product) {
     return (
@@ -38,21 +44,25 @@ export default function ProductDetail() {
     );
   }
 
-  const cartItem = cart.find((i) => i.id === product.id);
-  const metaDescription = (product.description || '').slice(0, 155);
-  const cartQty = cartItem ? cartItem.quantity : 0;
-  const images = product.images || [];
   const isRing = product.type === 'bague';
+  
+  // On cherche la quantité au panier correspondant à l'ID ET à la taille sélectionnée
+  const cartItem = cart.find((i) => i.id === product.id && (!isRing || i.size === selectedSize));
+  const cartQty = cartItem ? cartItem.quantity : 0;
+
+  const metaDescription = (product.description || '').slice(0, 155);
+  const images = product.images || [];
 
   const handleAdd = () => {
     if (!product.inStock) return;
-    addToCart(product);
+    // On passe la taille si c'est une bague
+    addToCart(product, isRing ? selectedSize : null);
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 1600);
   };
 
   const handleBuyNow = () => {
-    addToCart(product);
+    addToCart(product, isRing ? selectedSize : null);
     navigate('/panier');
   };
 
@@ -180,21 +190,44 @@ export default function ProductDetail() {
 
           <p style={{
             fontSize: '15px', color: C.muted, lineHeight: 1.75,
-            marginBottom: isRing ? '20px' : '36px',
+            marginBottom: '24px',
             borderTop: `1px solid ${C.border}`, paddingTop: '28px',
           }}>
             {product.description}
           </p>
 
+          {/* SECTION CHOIX DE LA TAILLE POUR LES BAGUES */}
           {isRing && (
-            <div style={{ marginBottom: '28px' }}>
-              <RingSizeGuide compact />
+            <div style={{
+              marginBottom: '32px', padding: '16px', border: `1px solid ${C.border}`,
+              background: C.panel, display: 'flex', flexDirection: 'column', gap: '12px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label htmlFor="size-select" style={{ fontSize: '13px', fontWeight: 600, color: C.chocolate }}>
+                  Choisir une taille :
+                </label>
+                <RingSizeGuide compact />
+              </div>
+              <select
+                id="size-select"
+                value={selectedSize}
+                onChange={(e) => setSelectedSize(e.target.value)}
+                style={{
+                  width: '100%', padding: '10px', border: `1px solid ${C.border}`,
+                  background: C.white, color: C.chocolate, fontSize: '14px',
+                  fontFamily: "'DM Sans', sans-serif", outline: 'none'
+                }}
+              >
+                {RING_SIZES.map((sz) => (
+                  <option key={sz} value={sz}>Taille FR/EU {sz}</option>
+                ))}
+              </select>
             </div>
           )}
 
           {cartQty > 0 && (
             <p style={{ fontSize: '13px', color: C.bordeaux, marginBottom: '16px' }}>
-              ✓ {cartQty} dans votre panier
+              ✓ {cartQty} dans votre panier {isRing && `(Taille ${selectedSize})`}
             </p>
           )}
 
