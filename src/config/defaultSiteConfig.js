@@ -21,6 +21,16 @@ export const defaultSiteConfig = {
     subtitle: 'Les pièces préférées de nos clientes, sélectionnées pour vous.',
     productIds: [],
   },
+  reviews: {
+  enabled: true,
+  eyebrow: 'Témoignages',
+  title: "Ce qu'elles disent",
+  items: [
+    { id: 'r-1', author: 'Marie L.', text: 'Des bijoux magnifiques, je suis ravie de mon achat !', rating: 5, location: 'Lyon', date: 'Mai 2025' },
+    { id: 'r-2', author: 'Sophie M.', text: 'Qualité irréprochable et livraison rapide, je recommande.', rating: 5, location: 'Paris', date: 'Avril 2025' },
+    { id: 'r-3', author: 'Camille R.', text: 'Mes amies ont adoré, je vais en recommander très bientôt.', rating: 5, location: 'Nantes', date: 'Mars 2025' },
+  ],
+},
   univers: {
     eyebrow: 'Nos univers',
     title: 'Collections capsules',
@@ -83,6 +93,13 @@ export function mergeSiteConfig(saved) {
     announcement: { ...defaultSiteConfig.announcement, ...saved.announcement },
     hero: { ...defaultSiteConfig.hero, ...saved.hero },
     bestsellers: { ...defaultSiteConfig.bestsellers, ...saved.bestsellers },
+    reviews: {
+      ...defaultSiteConfig.reviews,
+      ...saved.reviews,
+      items: Array.isArray(saved.reviews?.items)
+        ? saved.reviews.items
+        : defaultSiteConfig.reviews.items,
+    },
     univers: {
       ...defaultSiteConfig.univers,
       ...saved.univers,

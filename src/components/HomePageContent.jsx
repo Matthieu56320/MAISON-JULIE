@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useConfig } from '../context/ConfigContext';
 import { getHeroSectionStyle } from '../utils/heroBackground';
 import HomeBestSellers from './HomeBestSellers';
+import ReviewsSection from './Reviewssection';
 import { C } from '../theme/colors';
 
 function useInView(threshold = 0.15) {
@@ -136,19 +137,10 @@ export default function HomePageContent({ preview = false }) {
             {hero.secondaryCta}
           </CtaLink>
         </div>
-
-        {!preview && (
-          <div style={{
-            position: 'absolute', bottom: '32px', left: '50%', transform: 'translateX(-50%)',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
-          }}>
-            <span style={{ fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', color: '#8A6B5C' }}>Défiler</span>
-            <div style={{ width: '1px', height: '40px', background: 'linear-gradient(to bottom, #620017, transparent)' }} />
-          </div>
-        )}
       </section>
 
       <HomeBestSellers preview={preview} />
+      <ReviewsSection preview={preview} />
 
       {univers.cards.length > 0 && (
         <section style={{ padding: preview ? '48px 16px' : 'clamp(60px, 8vw, 120px) 24px', maxWidth: '1100px', margin: '0 auto' }}>

@@ -47,7 +47,9 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-function buildLineItems(items) {
+const PICKUP_ADDRESS = '8 rue Joseph Fortune, 56320 Le Faouët';
+
+function buildLineItems(items, deliveryMode = 'delivery') {
   if (!Array.isArray(items) || items.length === 0) {
     throw new Error('Panier vide');
   }
@@ -77,15 +79,26 @@ function buildLineItems(items) {
     };
   });
 
-  // Frais de livraison fixes par commande
-  lineItems.push({
-    price_data: {
-      currency: 'eur',
-      product_data: { name: 'Frais de livraison' },
-      unit_amount: Math.round(SHIPPING_FEE * 100),
-    },
-    quantity: 1,
-  });
+  // Frais de livraison : uniquement si livraison à domicile
+  if (deliveryMode !== 'pickup') {
+    lineItems.push({
+      price_data: {
+        currency: 'eur',
+        product_data: { name: 'Livraison à domicile' },
+        unit_amount: Math.round(SHIPPING_FEE * 100),
+      },
+      quantity: 1,
+    });
+  } else {
+    lineItems.push({
+      price_data: {
+        currency: 'eur',
+        product_data: { name: `Retrait gratuit — ${PICKUP_ADDRESS}` },
+        unit_amount: 0,
+      },
+      quantity: 1,
+    });
+  }
 
   return lineItems;
 }
@@ -150,26 +163,54 @@ app.post('/api/create-checkout-session', async (req, res) => {
   console.log('[POST /api/create-checkout-session] Reçu');
   console.log('[POST /api/create-checkout-session] Body:', JSON.stringify(req.body).substring(0, 200));
   try {
-    const items = req.body?.items || [];
-    console.log('[POST /api/create-checkout-session] Items count:', items.length);
-    const line_items = buildLineItems(items);
+    const { items = [], deliveryMode = 'delivery', promoCode } = req.body || {};
+    console.log('[POST /api/create-checkout-session] Items count:', items.length, '| Mode:', deliveryMode);
+    const line_items = buildLineItems(items, deliveryMode);
 
-    const session = await stripe.checkout.sessions.create({
+    // Résoudre le code promo Stripe si fourni
+    let discounts = undefined;
+    if (promoCode) {
+      try {
+        const coupons = await stripe.promotionCodes.list({ code: promoCode, active: true, limit: 1 });
+        if (coupons.data.length > 0) {
+          discounts = [{ promotion_code: coupons.data[0].id }];
+        } else {
+          console.warn('[checkout] Code promo introuvable ou inactif:', promoCode);
+        }
+      } catch (promoErr) {
+        console.warn('[checkout] Erreur code promo:', promoErr.message);
+      }
+    }
+
+    const sessionParams = {
       mode: 'payment',
       line_items,
       success_url: `${CLIENT_URL}/commande/merci?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${CLIENT_URL}/panier?annule=1`,
-      shipping_address_collection: { allowed_countries: ['FR'] },
       billing_address_collection: 'required',
       locale: 'fr',
-      allow_promotion_codes: true,
       customer_creation: 'always',
       metadata: {
         source: 'maison-julie',
         item_count: String(items.length),
+        delivery_mode: deliveryMode,
       },
-    });
+    };
 
+    // Livraison à domicile : collecte d'adresse + codes promo activés
+    if (deliveryMode === 'delivery') {
+      sessionParams.shipping_address_collection = { allowed_countries: ['FR'] };
+      // allow_promotion_codes uniquement si pas de discount manuel
+      if (!discounts) sessionParams.allow_promotion_codes = true;
+    }
+    // Retrait : pas d'adresse de livraison, codes promo quand même activés
+    else {
+      if (!discounts) sessionParams.allow_promotion_codes = true;
+    }
+
+    if (discounts) sessionParams.discounts = discounts;
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
     res.json({ url: session.url });
   } catch (err) {
     console.error('[checkout]', err);
@@ -284,6 +325,62 @@ app.post('/api/admin/catalog', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('[POST /api/admin/catalog]', err);
     res.status(500).json({ error: 'Impossible d\'enregistrer le catalogue' });
+  }
+});
+
+// ── Admin : gestion des codes promo Stripe ──
+
+app.get('/api/admin/promo-codes', requireAdmin, async (_req, res) => {
+  try {
+    const codes = await stripe.promotionCodes.list({ limit: 50, expand: ['data.coupon'] });
+    res.json({ promoCodes: codes.data });
+  } catch (err) {
+    console.error('[admin/promo-codes GET]', err);
+    res.status(500).json({ error: 'Impossible de charger les codes promo' });
+  }
+});
+
+app.post('/api/admin/promo-codes', requireAdmin, async (req, res) => {
+  try {
+    const { code, discountType, discountValue, maxRedemptions, expiresAt } = req.body || {};
+    if (!code || !discountType || !discountValue) {
+      return res.status(400).json({ error: 'code, discountType et discountValue sont requis' });
+    }
+
+    // Étape 1 : créer le coupon
+    const couponParams = {};
+    if (discountType === 'percent') {
+      couponParams.percent_off = Number(discountValue);
+      // pas de currency pour percent_off
+    } else {
+      couponParams.amount_off = Math.round(Number(discountValue) * 100);
+      couponParams.currency = 'eur'; // obligatoire uniquement pour amount_off
+    }
+    const coupon = await stripe.coupons.create(couponParams);
+
+    // Étape 2 : créer le code promo lié au coupon
+    const promoParams = {
+      coupon_id: coupon.id,
+      code: String(code).toUpperCase().trim(),
+    };
+    if (maxRedemptions) promoParams.max_redemptions = Number(maxRedemptions);
+    if (expiresAt) promoParams.expires_at = Math.floor(new Date(expiresAt).getTime() / 1000);
+
+    const promoCode = await stripe.promotionCodes.create(promoParams);
+    res.json({ promoCode });
+  } catch (err) {
+    console.error('[admin/promo-codes POST]', err);
+    res.status(500).json({ error: err.message || 'Impossible de créer le code promo' });
+  }
+});
+
+app.patch('/api/admin/promo-codes/:id/deactivate', requireAdmin, async (req, res) => {
+  try {
+    const updated = await stripe.promotionCodes.update(req.params.id, { active: false });
+    res.json({ promoCode: updated });
+  } catch (err) {
+    console.error('[admin/promo-codes PATCH]', err);
+    res.status(500).json({ error: 'Impossible de désactiver le code promo' });
   }
 });
 

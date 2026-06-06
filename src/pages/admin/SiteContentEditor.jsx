@@ -51,6 +51,27 @@ function SectionTitle({ children }) {
   );
 }
 
+function StarPicker({ value, onChange }) {
+  return (
+    <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button
+          key={star}
+          type="button"
+          onClick={() => onChange(star)}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: '20px', padding: '0 2px', lineHeight: 1,
+            color: star <= value ? '#620017' : '#D4C4B0',
+          }}
+        >
+          ★
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function SiteContentEditor({ onSaved }) {
   const {
     siteConfig,
@@ -61,6 +82,9 @@ export default function SiteContentEditor({ onSaved }) {
     addEngagementItem,
     updateEngagementItem,
     removeEngagementItem,
+    addReview,
+    updateReview,
+    removeReview,
     resetSiteConfig,
   } = useConfig();
   const { collections } = useProducts();
@@ -69,6 +93,7 @@ export default function SiteContentEditor({ onSaved }) {
   const notify = (msg) => onSaved?.(msg || '✓ Enregistré.');
 
   const { announcement, hero, univers, engagements, cta } = siteConfig;
+  const reviews = siteConfig.reviews ?? { enabled: true, eyebrow: 'Témoignages', title: "Ce qu'elles disent", items: [] };
 
   const editorColumn = (
     <div>
@@ -81,6 +106,7 @@ export default function SiteContentEditor({ onSaved }) {
         </div>
       )}
 
+      {/* ── Bandeau ── */}
       <div style={panelStyle}>
         <SectionTitle>Bandeau d&apos;annonce</SectionTitle>
         <Toggle
@@ -98,6 +124,7 @@ export default function SiteContentEditor({ onSaved }) {
         </Field>
       </div>
 
+      {/* ── Hero ── */}
       <div style={panelStyle}>
         <SectionTitle>Grande bannière d&apos;accueil</SectionTitle>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
@@ -130,10 +157,7 @@ export default function SiteContentEditor({ onSaved }) {
               hint="0 % = photo brute, 100 % = voile crème fort (meilleure lisibilité du texte)."
             >
               <input
-                type="range"
-                min={0}
-                max={100}
-                step={5}
+                type="range" min={0} max={100} step={5}
                 value={hero.overlayOpacity ?? 85}
                 onChange={(e) => patchSection('hero', { overlayOpacity: Number(e.target.value) })}
                 style={{ width: '100%', accentColor: '#620017', cursor: 'pointer' }}
@@ -162,6 +186,7 @@ export default function SiteContentEditor({ onSaved }) {
         </div>
       </div>
 
+      {/* ── Best-sellers ── */}
       <div style={panelStyle}>
         <SectionTitle>Section best-sellers (accueil)</SectionTitle>
         <Toggle
@@ -195,6 +220,7 @@ export default function SiteContentEditor({ onSaved }) {
         </p>
       </div>
 
+      {/* ── Univers ── */}
       <div style={panelStyle}>
         <SectionTitle>Section « Nos univers »</SectionTitle>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
@@ -262,6 +288,7 @@ export default function SiteContentEditor({ onSaved }) {
         </button>
       </div>
 
+      {/* ── Engagements ── */}
       <div style={panelStyle}>
         <SectionTitle>Section « Nos engagements »</SectionTitle>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
@@ -305,6 +332,97 @@ export default function SiteContentEditor({ onSaved }) {
         </button>
       </div>
 
+      {/* ── Avis clients ── */}
+      <div style={panelStyle}>
+        <SectionTitle>Section « Avis clients »</SectionTitle>
+        <Toggle
+          on={reviews.enabled !== false}
+          onChange={(enabled) => patchSection('reviews', { ...reviews, enabled })}
+          label={reviews.enabled !== false ? 'Section affichée' : 'Section masquée'}
+        />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+          <Field label="Petit titre">
+            <input
+              style={inputStyle}
+              value={reviews.eyebrow ?? 'Témoignages'}
+              onChange={(e) => patchSection('reviews', { ...reviews, eyebrow: e.target.value })}
+            />
+          </Field>
+          <Field label="Titre de section">
+            <input
+              style={inputStyle}
+              value={reviews.title ?? "Ce qu'elles disent"}
+              onChange={(e) => patchSection('reviews', { ...reviews, title: e.target.value })}
+            />
+          </Field>
+        </div>
+
+        {(reviews.items ?? []).map((review, index) => (
+          <div key={review.id} style={{ border: '1px solid #D4C4B0', padding: '20px', marginBottom: '12px', background: '#FFFCF8' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <span style={{ fontSize: '11px', letterSpacing: '1.5px', textTransform: 'uppercase', color: '#620017' }}>
+                Avis {index + 1}
+              </span>
+              <button type="button" style={{ ...btnDanger, padding: '5px 12px', fontSize: '10px' }}
+                onClick={() => removeReview(review.id)}
+              >Supprimer</button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '4px' }}>
+              <Field label="Prénom Nom *">
+                <input
+                  style={inputStyle}
+                  value={review.author}
+                  placeholder="Marie D."
+                  onChange={(e) => updateReview(review.id, { author: e.target.value })}
+                />
+              </Field>
+              <Field label="Ville / Région">
+                <input
+                  style={inputStyle}
+                  value={review.location}
+                  placeholder="Rennes"
+                  onChange={(e) => updateReview(review.id, { location: e.target.value })}
+                />
+              </Field>
+              <Field label="Date (optionnel)">
+                <input
+                  style={inputStyle}
+                  value={review.date}
+                  placeholder="Avril 2025"
+                  onChange={(e) => updateReview(review.id, { date: e.target.value })}
+                />
+              </Field>
+            </div>
+
+            <Field label="Note">
+              <StarPicker
+                value={review.rating ?? 5}
+                onChange={(rating) => updateReview(review.id, { rating })}
+              />
+            </Field>
+
+            <Field label="Témoignage *">
+              <textarea
+                style={{ ...textareaStyle, minHeight: '80px' }}
+                rows={3}
+                value={review.text}
+                placeholder="Un avis sincère sur votre bijou ou votre expérience..."
+                onChange={(e) => updateReview(review.id, { text: e.target.value })}
+              />
+            </Field>
+          </div>
+        ))}
+
+        <button type="button" style={btnPrimary} onClick={() => addReview()}
+          onMouseEnter={(e) => { e.currentTarget.style.background = '#620017'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = '#56352c'; }}
+        >
+          + Ajouter un avis
+        </button>
+      </div>
+
+      {/* ── CTA final ── */}
       <div style={panelStyle}>
         <SectionTitle>Bloc final de page</SectionTitle>
         <Field label="Petit titre">
@@ -353,12 +471,8 @@ export default function SiteContentEditor({ onSaved }) {
       </div>
 
       <style>{`
-        .mj-site-editor {
-          position: relative;
-        }
-        .mj-site-editor-form {
-          min-width: 0;
-        }
+        .mj-site-editor { position: relative; }
+        .mj-site-editor-form { min-width: 0; }
         @media (min-width: 1025px) {
           .mj-site-editor-form {
             padding-right: calc(42% + 32px);

@@ -127,10 +127,10 @@ export default function HomeBestSellers({ preview = false }) {
   }
 
   if (items.length === 0) {
-    items = products.filter((p) => p.inStock).slice(0, 5);
+    items = products.filter((p) => p.inStock).slice(0, 3);
   }
 
-  items = items.slice(0, 5);
+  items = items.slice(0, 3);
 
   if (items.length === 0) return null;
 

@@ -1,0 +1,122 @@
+{
+  "announcement": {
+    "enabled": true,
+    "text": "Fête des mères le 31 mai — Expédition à partir du lundi, 5 € de livraison"
+  },
+  "hero": {
+    "eyebrow": "Bijoux & Accessoires",
+    "title": "Maison Julie",
+    "description": "Viens trouver ton bonheur chez Maison Julie — des bijoux pensés pour sublimer chaque moment.",
+    "bgImage": "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?q=80&w=1920",
+    "showBgImage": false,
+    "overlayOpacity": 85,
+    "primaryCta": "Découvrir la collection",
+    "secondaryCta": "Nous contacter"
+  },
+  "bestsellers": {
+    "enabled": true,
+    "eyebrow": "Les plus vendus",
+    "title": "Nos best-sellers",
+    "subtitle": "Les pièces préférées de nos clientes, sélectionnées pour vous.",
+    "productIds": []
+  },
+  "reviews": {
+    "enabled": true,
+    "eyebrow": "Témoignages",
+    "title": "Ce qu'elles disent",
+    "items": [
+      {
+        "id": "r-1",
+        "author": "Marie L.",
+        "text": "Des bijoux magnifiques, je suis ravie de mon achat !",
+        "rating": 5,
+        "location": "Lyon",
+        "date": "Mai 2025"
+      },
+      {
+        "id": "r-2",
+        "author": "Sophie M.",
+        "text": "Qualité irréprochable et livraison rapide, je recommande.",
+        "rating": 5,
+        "location": "Paris",
+        "date": "Avril 2025"
+      },
+      {
+        "id": "r-3",
+        "author": "Camille R.",
+        "text": "Mes amies ont adoré, je vais en recommander très bientôt.",
+        "rating": 5,
+        "location": "Nantes",
+        "date": "Mars 2025"
+      }
+    ]
+  },
+  "univers": {
+    "eyebrow": "Nos univers",
+    "title": "Collections capsules",
+    "cards": [
+      {
+        "id": "home-capsule",
+        "eyebrow": "Nouvelle saison",
+        "name": "Collection Capsule",
+        "tagline": "Les dernières nouveautés de la saison",
+        "accent": "#620017",
+        "image": "",
+        "collectionId": "Capsule",
+        "linkLabel": "Voir la collection →"
+      },
+      {
+        "id": "home-agate",
+        "eyebrow": "Nouvelle saison",
+        "name": "Collection Agate",
+        "tagline": "Une élégance raffinée et intemporelle",
+        "accent": "#56352c",
+        "image": "",
+        "collectionId": "Agate",
+        "linkLabel": "Voir la collection →"
+      }
+    ]
+  },
+  "engagements": {
+    "eyebrow": "Nos engagements",
+    "title": "La qualité avant tout",
+    "items": [
+      {
+        "id": "eng-1",
+        "icon": "✦",
+        "label": "Acier inoxydable",
+        "desc": "Résistant, hypoallergénique, durable"
+      },
+      {
+        "id": "eng-2",
+        "icon": "✦",
+        "label": "Plaqué or 18k",
+        "desc": "Finitions dorées longue durée"
+      },
+      {
+        "id": "eng-3",
+        "icon": "✦",
+        "label": "Fait avec soin",
+        "desc": "Chaque pièce sélectionnée avec amour"
+      }
+    ]
+  },
+  "cta": {
+    "eyebrow": "Fête des mères · 31 mai",
+    "title": "Le cadeau parfait",
+    "titleEmphasis": "existe déjà.",
+    "description": "Offrez un bijou qui traversera le temps.",
+    "buttonText": "Voir tous les bijoux"
+  },
+  "footer": {
+    "brandName": "Maison Julie",
+    "tagline": "Bijoux & accessoires — élégance au quotidien.",
+    "email": "julieberthier9@gmail.com",
+    "address": "France — expéditions à partir du lundi, 5 € de livraison",
+    "hours": "Commandes en ligne 7j/7\nExpéditions à partir du lundi, sauf indisponibilité",
+    "instagramUrl": "https://instagram.com/maisonjuliestudio",
+    "instagramHandle": "@maisonjuliestudio",
+    "tiktokUrl": "https://tiktok.com/@julieeetco",
+    "tiktokHandle": "@julieeetco"
+  }
+}

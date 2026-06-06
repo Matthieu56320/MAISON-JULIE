@@ -71,32 +71,44 @@ async function persistConfigRemotely(config) {
   }
 }
 
+// ── Helpers avis ──
+export function newReview() {
+  return {
+    id: `review-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    author: '',
+    location: '',
+    rating: 5,
+    text: '',
+    date: '',
+  };
+}
+
 const stored = typeof window !== 'undefined' ? loadStoredConfig() : null;
 
 const ConfigContext = createContext(null);
 
 export function ConfigProvider({ children }) {
   const [siteConfig, setSiteConfig] = useState(stored ?? { ...defaultSiteConfig });
-  const [hydrated, setHydrated] = useState(!!stored);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    if (!hydrated) {
-      (async () => {
-        const remote = await loadRemoteConfig();
-        if (remote) {
-          setSiteConfig(remote);
-        } else {
-          const saved = loadStoredConfig();
-          if (saved) setSiteConfig(saved);
-        }
-        setHydrated(true);
-      })();
-    }
-  }, [hydrated]);
+    (async () => {
+      const remote = await loadRemoteConfig();
+      if (remote) {
+        setSiteConfig(remote);
+      } else {
+        const saved = loadStoredConfig();
+        if (saved) setSiteConfig(saved);
+      }
+      setHydrated(true);
+    })();
+  }, []);
 
   useEffect(() => {
-    if (hydrated) {
-      saveConfig(siteConfig);
+    if (!hydrated) return;
+    saveConfig(siteConfig);
+    // Ne persiste vers le serveur que si c'est l'admin qui modifie
+    if (sessionStorage.getItem('mj_admin_key')) {
       persistConfigRemotely(siteConfig);
     }
   }, [siteConfig, hydrated]);
@@ -112,6 +124,7 @@ export function ConfigProvider({ children }) {
     }));
   }, []);
 
+  // ── Univers ──
   const setUniversCards = useCallback((cards) => {
     patchSection('univers', { cards });
   }, [patchSection]);
@@ -143,6 +156,7 @@ export function ConfigProvider({ children }) {
     }));
   }, []);
 
+  // ── Engagements ──
   const setEngagementItems = useCallback((items) => {
     patchSection('engagements', { items });
   }, [patchSection]);
@@ -179,6 +193,43 @@ export function ConfigProvider({ children }) {
     }));
   }, []);
 
+  // ── Avis clients ──
+  const addReview = useCallback(() => {
+    setSiteConfig((prev) => {
+      const reviews = prev.reviews ?? { enabled: true, eyebrow: 'Témoignages', title: 'Ce qu\'elles disent', items: [] };
+      return mergeSiteConfig({
+        ...prev,
+        reviews: { ...reviews, items: [...(reviews.items ?? []), newReview()] },
+      });
+    });
+  }, []);
+
+  const updateReview = useCallback((id, partial) => {
+    setSiteConfig((prev) => {
+      const reviews = prev.reviews ?? { enabled: true, eyebrow: 'Témoignages', title: 'Ce qu\'elles disent', items: [] };
+      return mergeSiteConfig({
+        ...prev,
+        reviews: {
+          ...reviews,
+          items: (reviews.items ?? []).map((r) => (r.id === id ? { ...r, ...partial } : r)),
+        },
+      });
+    });
+  }, []);
+
+  const removeReview = useCallback((id) => {
+    setSiteConfig((prev) => {
+      const reviews = prev.reviews ?? { enabled: true, eyebrow: 'Témoignages', title: 'Ce qu\'elles disent', items: [] };
+      return mergeSiteConfig({
+        ...prev,
+        reviews: {
+          ...reviews,
+          items: (reviews.items ?? []).filter((r) => r.id !== id),
+        },
+      });
+    });
+  }, []);
+
   const resetSiteConfig = useCallback(() => {
     const resetConfig = { ...defaultSiteConfig };
     setSiteConfig(resetConfig);
@@ -195,14 +246,20 @@ export function ConfigProvider({ children }) {
       siteConfig,
       updateConfig,
       patchSection,
+      // univers
       setUniversCards,
       addUniversCard,
       updateUniversCard,
       removeUniversCard,
+      // engagements
       setEngagementItems,
       addEngagementItem,
       updateEngagementItem,
       removeEngagementItem,
+      // avis
+      addReview,
+      updateReview,
+      removeReview,
       resetSiteConfig,
     }}>
       {children}

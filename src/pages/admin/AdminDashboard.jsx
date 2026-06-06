@@ -346,6 +346,13 @@ export default function AdminDashboard() {
   const [deleteConfirm, setDeleteConfirm] = useState(null); // { type, id, name }
   const [successMsg, setSuccessMsg] = useState('');
 
+  // Codes promo
+  const [promoCodes, setPromoCodes] = useState([]);
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [promoError, setPromoError] = useState('');
+  const [promoForm, setPromoForm] = useState({ code: '', discountType: 'percent', discountValue: '', maxRedemptions: '', expiresAt: '' });
+  const [showPromoForm, setShowPromoForm] = useState(false);
+
   const [orders, setOrders] = useState([]);
   const [registeredClients, setRegisteredClients] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
@@ -377,6 +384,69 @@ export default function AdminDashboard() {
       loadOrdersData();
     }
   }, [isAuthorized, tab, loadOrdersData]);
+
+  const loadPromoCodes = useCallback(async () => {
+    setPromoLoading(true);
+    setPromoError('');
+    try {
+      const { adminFetch } = await import('../../api/adminApi').catch(() => ({}));
+      const res = await fetch('/api/admin/promo-codes', {
+        headers: { 'x-admin-key': sessionStorage.getItem('mj_admin_key') || 'admin123' },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Erreur chargement');
+      setPromoCodes(data.promoCodes || []);
+    } catch (err) {
+      setPromoError(err.message || 'Impossible de charger les codes promo');
+    } finally {
+      setPromoLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAuthorized && tab === 'promo') {
+      loadPromoCodes();
+    }
+  }, [isAuthorized, tab, loadPromoCodes]);
+
+  const handleCreatePromo = async () => {
+    if (!promoForm.code.trim() || !promoForm.discountValue) {
+      return alert('Code et valeur de réduction requis.');
+    }
+    try {
+      const res = await fetch('/api/admin/promo-codes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': sessionStorage.getItem('mj_admin_key') || 'admin123',
+        },
+        body: JSON.stringify(promoForm),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Erreur création');
+      flash('✓ Code promo créé.');
+      setShowPromoForm(false);
+      setPromoForm({ code: '', discountType: 'percent', discountValue: '', maxRedemptions: '', expiresAt: '' });
+      loadPromoCodes();
+    } catch (err) {
+      alert(err.message || 'Impossible de créer le code promo');
+    }
+  };
+
+  const handleDeactivatePromo = async (id) => {
+    if (!window.confirm('Désactiver ce code promo ?')) return;
+    try {
+      const res = await fetch(`/api/admin/promo-codes/${id}/deactivate`, {
+        method: 'PATCH',
+        headers: { 'x-admin-key': sessionStorage.getItem('mj_admin_key') || 'admin123' },
+      });
+      if (!res.ok) throw new Error('Erreur désactivation');
+      flash('Code promo désactivé.');
+      loadPromoCodes();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
 
   const handleSyncStripe = async () => {
     setOrdersSyncing(true);
@@ -586,6 +656,7 @@ export default function AdminDashboard() {
               { key: 'orders', label: 'Commandes' },
               { key: 'products', label: 'Catalogue' },
               { key: 'collections', label: 'Collections' },
+              { key: 'promo', label: 'Codes promo' },
             ].map(t => (
               <button key={t.key} onClick={() => setTab(t.key)} style={{
                 background: 'none', border: 'none', cursor: 'pointer',
@@ -936,9 +1007,218 @@ export default function AdminDashboard() {
         )}
       </div>
 
+
+        {/* ─── ONGLET CODES PROMO ─── */}
+        {tab === 'promo' && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
+              <div>
+                <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '22px', fontWeight: 400, color: '#56352c', marginBottom: '6px' }}>
+                  Codes promo
+                </h2>
+                <p style={{ fontSize: '13px', color: '#8A6B5C' }}>
+                  Les codes sont créés sur Stripe et fonctionnent sur mobile et desktop.
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button style={{ ...btnPrimary, background: 'transparent', color: '#56352c', border: '1px solid #D4C4B0' }}
+                  onClick={loadPromoCodes} disabled={promoLoading}>
+                  {promoLoading ? 'Chargement…' : 'Actualiser'}
+                </button>
+                {!showPromoForm && (
+                  <button style={btnPrimary} onClick={() => setShowPromoForm(true)}
+                    onMouseEnter={e => e.currentTarget.style.background = '#620017'}
+                    onMouseLeave={e => e.currentTarget.style.background = '#56352c'}>
+                    + Nouveau code
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {promoError && <p style={{ color: '#D44B4B', fontSize: '14px', marginBottom: '20px' }}>{promoError}</p>}
+
+            {showPromoForm && (
+              <div style={{ background: '#E8DCC4', border: '1px solid #D4C4B0', padding: '32px', marginBottom: '32px' }}>
+                <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: '18px', fontWeight: 400, color: '#56352c', marginBottom: '24px' }}>
+                  Nouveau code promo
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '20px', marginBottom: '20px' }}>
+                  <div>
+                    <label style={labelStyle}>Code *</label>
+                    <input style={inputStyle} value={promoForm.code}
+                      onChange={e => setPromoForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
+                      placeholder="EX : JULIE10" />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Type de réduction *</label>
+                    <select style={{ ...inputStyle, cursor: 'pointer' }} value={promoForm.discountType}
+                      onChange={e => setPromoForm(f => ({ ...f, discountType: e.target.value }))}>
+                      <option value="percent">Pourcentage (%)</option>
+                      <option value="amount">Montant fixe (€)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Valeur * {promoForm.discountType === 'percent' ? '(%)' : '(€)'}</label>
+                    <input style={inputStyle} type="number" min="1" step="1" value={promoForm.discountValue}
+                      onChange={e => setPromoForm(f => ({ ...f, discountValue: e.target.value }))}
+                      placeholder={promoForm.discountType === 'percent' ? '10' : '5'} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Utilisations max (optionnel)</label>
+                    <input style={inputStyle} type="number" min="1" value={promoForm.maxRedemptions}
+                      onChange={e => setPromoForm(f => ({ ...f, maxRedemptions: e.target.value }))}
+                      placeholder="Illimité" />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Expire le (optionnel)</label>
+                    <input style={inputStyle} type="date" value={promoForm.expiresAt}
+                      onChange={e => setPromoForm(f => ({ ...f, expiresAt: e.target.value }))} />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button style={btnPrimary} onClick={handleCreatePromo}
+                    onMouseEnter={e => e.currentTarget.style.background = '#620017'}
+                    onMouseLeave={e => e.currentTarget.style.background = '#56352c'}>
+                    Créer le code
+                  </button>
+                  <button style={{ ...btnPrimary, background: 'transparent', color: '#8A6B5C', border: '1px solid #D4C4B0' }}
+                    onClick={() => setShowPromoForm(false)}>
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Tableau desktop */}
+            <div className="promo-table-wrap" style={{ overflowX: 'auto', border: '1px solid #D4C4B0' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                <thead>
+                  <tr style={{ background: '#E8DCC4', borderBottom: '1px solid #D4C4B0' }}>
+                    {['Code', 'Réduction', 'Utilisations', 'Expire le', 'Statut', ''].map(h => (
+                      <th key={h} style={{ padding: '14px 18px', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: '#8A6B5C', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {promoCodes.length === 0 && !promoLoading && (
+                    <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: '#8A6B5C' }}>
+                      Aucun code promo. Créez-en un ci-dessus.
+                    </td></tr>
+                  )}
+                  {promoCodes.map(pc => {
+                    const coupon = pc.promotion?.coupon || pc.coupon || {};
+                    const discount = coupon.percent_off
+                      ? `${coupon.percent_off}%`
+                      : coupon.amount_off
+                        ? `${(coupon.amount_off / 100).toFixed(2)} €`
+                        : '—';
+                    const used = `${pc.times_redeemed || 0}${pc.max_redemptions ? ` / ${pc.max_redemptions}` : ''}`;
+                    const expires = pc.expires_at
+                      ? new Date(pc.expires_at * 1000).toLocaleDateString('fr-FR')
+                      : '—';
+                    return (
+                      <tr key={pc.id} style={{ borderBottom: '1px solid #D4C4B0' }}>
+                        <td style={{ padding: '16px 18px', fontWeight: 600, color: '#56352c', letterSpacing: '1px', whiteSpace: 'nowrap' }}>{pc.code}</td>
+                        <td style={{ padding: '16px 18px', color: '#620017', fontWeight: 500 }}>{discount}</td>
+                        <td style={{ padding: '16px 18px', color: '#8A6B5C' }}>{used}</td>
+                        <td style={{ padding: '16px 18px', color: '#8A6B5C', whiteSpace: 'nowrap' }}>{expires}</td>
+                        <td style={{ padding: '16px 18px' }}>
+                          <span style={{
+                            background: pc.active ? '#E3EDDE' : '#F7F0DB',
+                            color: pc.active ? '#447334' : '#A3701A',
+                            padding: '3px 10px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px',
+                          }}>
+                            {pc.active ? 'Actif' : 'Inactif'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '16px 18px', textAlign: 'right' }}>
+                          {pc.active && (
+                            <button style={{ ...btnDanger, padding: '7px 14px', fontSize: '11px', whiteSpace: 'nowrap' }}
+                              onClick={() => handleDeactivatePromo(pc.id)}
+                              onMouseEnter={e => { e.currentTarget.style.background = '#D44B4B'; e.currentTarget.style.color = '#FFFCF8'; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#D44B4B'; }}>
+                              Désactiver
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Cartes mobile */}
+            <div className="promo-cards-wrap">
+              {promoCodes.length === 0 && !promoLoading && (
+                <div style={{ padding: '40px', textAlign: 'center', color: '#8A6B5C', border: '1px solid #D4C4B0' }}>
+                  Aucun code promo. Créez-en un ci-dessus.
+                </div>
+              )}
+              {promoCodes.map(pc => {
+                const coupon = pc.promotion?.coupon || pc.coupon || {};
+                const discount = coupon.percent_off
+                  ? `−${coupon.percent_off}%`
+                  : coupon.amount_off
+                    ? `−${(coupon.amount_off / 100).toFixed(2)} €`
+                    : '—';
+                const used = `${pc.times_redeemed || 0}${pc.max_redemptions ? ` / ${pc.max_redemptions}` : ' util.'}`;
+                const expires = pc.expires_at
+                  ? new Date(pc.expires_at * 1000).toLocaleDateString('fr-FR')
+                  : 'Sans limite';
+                return (
+                  <div key={pc.id} style={{
+                    border: '1px solid #D4C4B0', marginBottom: '10px',
+                    padding: '18px 16px', background: '#FFFCF8',
+                    display: 'flex', flexDirection: 'column', gap: '10px',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontFamily: "'Playfair Display', serif", fontSize: '18px', color: '#56352c', letterSpacing: '1px' }}>
+                        {pc.code}
+                      </span>
+                      <span style={{
+                        background: pc.active ? '#E3EDDE' : '#F7F0DB',
+                        color: pc.active ? '#447334' : '#A3701A',
+                        padding: '3px 10px', fontSize: '11px', textTransform: 'uppercase',
+                      }}>
+                        {pc.active ? 'Actif' : 'Inactif'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                      <div>
+                        <p style={{ fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: '#8A6B5C', marginBottom: '2px' }}>Réduction</p>
+                        <p style={{ fontSize: '15px', color: '#620017', fontWeight: 600 }}>{discount}</p>
+                      </div>
+                      <div>
+                        <p style={{ fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: '#8A6B5C', marginBottom: '2px' }}>Utilisations</p>
+                        <p style={{ fontSize: '14px', color: '#56352c' }}>{used}</p>
+                      </div>
+                      <div>
+                        <p style={{ fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: '#8A6B5C', marginBottom: '2px' }}>Expire</p>
+                        <p style={{ fontSize: '14px', color: '#56352c' }}>{expires}</p>
+                      </div>
+                    </div>
+                    {pc.active && (
+                      <button style={{ ...btnDanger, padding: '9px 14px', fontSize: '11px', width: '100%', textAlign: 'center' }}
+                        onClick={() => handleDeactivatePromo(pc.id)}>
+                        Désactiver ce code
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400&family=DM+Sans:wght@300;400;500&display=swap');
         * { box-sizing: border-box; }
+        .promo-table-wrap { display: block; }
+        .promo-cards-wrap { display: none; }
+        @media (max-width: 640px) {
+          .promo-table-wrap { display: none; }
+          .promo-cards-wrap { display: block; }
+        }
       `}</style>
     </div>
   );

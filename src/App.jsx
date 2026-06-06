@@ -13,6 +13,7 @@ import Cart from './pages/cart';
 import CheckoutSuccess from './pages/CheckoutSuccess';
 import Legal from './pages/Legal';
 import AdminDashboard from './pages/admin/AdminDashboard';
+import ReviewFormPage from './pages/ReviewFormPage';
 
 function AppShell() {
   const location = useLocation();
@@ -26,6 +27,7 @@ function AppShell() {
           <Route path="/" element={<Home />} />
           <Route path="/catalogue" element={<Catalog />} />
           <Route path="/produit/:id" element={<ProductDetail />} />
+          <Route path="/avis" element={<ReviewFormPage />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/panier" element={<Cart />} />
           <Route path="/commande/merci" element={<CheckoutSuccess />} />

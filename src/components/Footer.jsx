@@ -99,6 +99,7 @@ export default function Footer() {
           <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <Link to="/catalogue" style={linkStyle}>Catalogue</Link>
             <Link to="/contact" style={linkStyle}>Contact</Link>
+            <Link to="/avis" style={linkStyle}>Laisser un avis</Link>
             <Link to="/cgv" style={linkStyle}>CGV</Link>
             <Link to="/mentions-legales" style={linkStyle}>Mentions légales</Link>
           </nav>
