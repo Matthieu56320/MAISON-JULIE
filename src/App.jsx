@@ -6,6 +6,7 @@ import { ConfigProvider } from './context/ConfigContext';
 import { AuthProvider } from './context/AuthContext'; // ✦ 1. Import de l'AuthProvider
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import ForgotPassword from './pages/ForgotPassword';
 import Home from './pages/home';
 import Catalog from './pages/catalog';
 import ProductDetail from './pages/ProductDetail';
@@ -37,6 +38,7 @@ function AppShell() {
           <Route path="/panier" element={<Cart />} />
           <Route path="/commande/merci" element={<CheckoutSuccess />} />
           <Route path="/cgv" element={<Legal type="cgv" />} />
+          <Route path="/mot-de-passe-oublie" element={<ForgotPassword />} />
           <Route path="/mentions-legales" element={<Legal type="mentions" />} />
           <Route path="/maison-julie-secret-dashboard" element={<AdminDashboard />} />
           
