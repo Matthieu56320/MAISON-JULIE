@@ -15,18 +15,22 @@ export default function Cart() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
 
-  const totalShippingCost = cart.length > 0 ? FLAT_SHIPPING_FEE : 0;
+  // Nouvel état pour le mode de livraison : 'shipping' ou 'pickup'
+  const [shippingMode, setShippingMode] = useState('shipping');
+
+  // Les frais de port s'annulent si retrait sur place
+  const totalShippingCost = (cart.length > 0 && shippingMode === 'shipping') ? FLAT_SHIPPING_FEE : 0;
   const totalWithShipping = totalPrice + totalShippingCost;
 
   const handleCheckout = async () => {
     setCheckoutError('');
     setCheckoutLoading(true);
     try {
-      // Le tableau cart contient maintenant l'attribut .size pour Stripe !
-      const url = await createCheckoutSession(cart);
+      // On passe le panier ET le mode de livraison choisi à Stripe
+      const url = await createCheckoutSession(cart, { shippingMode });
       window.location.href = url;
     } catch (err) {
-      setCheckoutError(err.message || 'Paiement indisponible. Vérifiez que le serveur API tourne (npm run dev).');
+      setCheckoutError(err.message || 'Paiement indisponible. Vérifiez que le serveur API tourne.');
       setCheckoutLoading(false);
     }
   };
@@ -66,9 +70,6 @@ export default function Cart() {
         }}>
           Découvrir nos bijoux
         </Link>
-        <div style={{ width: '100%', marginTop: '48px' }}>
-          <ProductRecommendations title="Coup de cœur du moment" subtitle="Pour commencer" limit={4} />
-        </div>
       </div>
       </>
     );
@@ -90,8 +91,10 @@ export default function Cart() {
 
       <div style={{
         maxWidth: '1000px', margin: '0 auto', padding: '48px 24px 64px',
-        display: 'grid', gridTemplateColumns: 'minmax(0,1fr) min(340px, 100%)', gap: '48px', alignItems: 'start',
+        display: 'grid', gridTemplateColumns: 'minmax(0,1fr) min(360px, 100%)', gap: '48px', alignItems: 'start',
       }} className="cart-grid">
+        
+        {/* COLONNE GAUCHE : LISTE DES ARTICLES */}
         <div>
           {canceled && (
             <div style={{
@@ -110,7 +113,6 @@ export default function Cart() {
           )}
 
           {cart.map((item) => (
-            /* Clé unique combinant ID et taille */
             <div key={`${item.id}_${item.size || 'no-size'}`} style={{
               display: 'grid', gridTemplateColumns: '88px 1fr auto', gap: '20px', alignItems: 'center', padding: '24px 0', borderBottom: `1px solid ${C.border}`,
             }}>
@@ -125,34 +127,21 @@ export default function Cart() {
                 <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: '17px', fontWeight: 400, color: C.chocolate, marginBottom: '4px' }}>
                   {item.name}
                 </h3>
-                
-                {/* TEXTE COMPLÉMENTAIRE DE LA TAILLE */}
                 {item.size && (
                   <p style={{ fontSize: '12px', color: C.bordeaux, fontWeight: 500, marginBottom: '4px' }}>
                     Taille : FR/EU {item.size}
                   </p>
                 )}
-
                 <p style={{ fontSize: '13px', color: C.muted }}>{item.price.toFixed(2)} € / pièce</p>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', border: `1px solid ${C.border}` }}>
-                  <button
-                    onClick={() => removeFromCart(item.id, item.size)}
-                    style={{ width: '36px', height: '36px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: C.muted }}
-                  >−</button>
-                  <span style={{ width: '32px', textAlign: 'center', fontSize: '14px', fontWeight: 500, color: C.chocolate }}>
-                    {item.quantity}
-                  </span>
-                  <button
-                    onClick={() => addToCart(item, item.size)}
-                    style={{ width: '36px', height: '36px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: C.muted }}
-                  >+</button>
+                  <button onClick={() => removeFromCart(item.id, item.size)} style={{ width: '36px', height: '36px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: C.muted }}>−</button>
+                  <span style={{ width: '32px', textAlign: 'center', fontSize: '14px', fontWeight: 500, color: C.chocolate }}>{item.quantity}</span>
+                  <button onClick={() => addToCart(item, item.size)} style={{ width: '36px', height: '36px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: C.muted }}>+</button>
                 </div>
-                <p style={{ fontSize: '15px', fontWeight: 500, color: C.chocolate }}>
-                  {(item.price * item.quantity).toFixed(2)} €
-                </p>
+                <p style={{ fontSize: '15px', fontWeight: 500, color: C.chocolate }}>{(item.price * item.quantity).toFixed(2)} €</p>
               </div>
             </div>
           ))}
@@ -164,26 +153,76 @@ export default function Cart() {
           </div>
         </div>
 
+        {/* COLONNE DROITE : RÉCAPITULATIF & CHOIX DE LIVRAISON */}
         <div style={{ background: C.panel, padding: '36px 28px', border: `1px solid ${C.border}`, position: 'sticky', top: '88px' }}>
-          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '22px', fontWeight: 400, color: C.chocolate, marginBottom: '28px', paddingBottom: '20px', borderBottom: `1px solid ${C.border}` }}>
+          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '22px', fontWeight: 400, color: C.chocolate, marginBottom: '24px', paddingBottom: '16px', borderBottom: `1px solid ${C.border}` }}>
             Récapitulatif
           </h2>
 
+          {/* BLOC SÉLECTEUR DE LIVRAISON */}
+          <div style={{ marginBottom: '28px' }}>
+            <p style={{ fontSize: '12px', fontWeight: 600, color: C.chocolate, marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Mode de livraison :
+            </p>
+            
+            {/* Option 1 : Colissimo / Domicile */}
+            <label style={{
+              display: 'flex', alignItems: 'center', gap: '10px', padding: '12px',
+              border: `1px solid ${shippingMode === 'shipping' ? C.bordeaux : C.border}`,
+              background: shippingMode === 'shipping' ? C.bg : C.white,
+              cursor: 'pointer', marginBottom: '10px', fontSize: '14px', color: C.chocolate
+            }}>
+              <input 
+                type="radio" name="shipping_mode" value="shipping" 
+                checked={shippingMode === 'shipping'} 
+                onChange={() => setShippingMode('shipping')}
+                style={{ accentColor: C.bordeaux }}
+              />
+              <div style={{ flex: 1 }}>
+                <strong>Livraison à domicile</strong>
+                <div style={{ fontSize: '12px', color: C.muted, marginTop: '2px' }}>Suivi Colissimo (5,00 €)</div>
+              </div>
+            </label>
+
+            {/* Option 2 : Click & Collect */}
+            <label style={{
+              display: 'flex', alignItems: 'start', gap: '10px', padding: '12px',
+              border: `1px solid ${shippingMode === 'pickup' ? C.bordeaux : C.border}`,
+              background: shippingMode === 'pickup' ? C.bg : C.white,
+              cursor: 'pointer', fontSize: '14px', color: C.chocolate
+            }}>
+              <input 
+                type="radio" name="shipping_mode" value="pickup" 
+                checked={shippingMode === 'pickup'} 
+                onChange={() => setShippingMode('pickup')}
+                style={{ accentColor: C.bordeaux, marginTop: '3px' }}
+              />
+              <div style={{ flex: 1 }}>
+                <strong>Retrait sur place (Gratuit)</strong>
+                <div style={{ fontSize: '12px', color: C.muted, marginTop: '2px', lineHeight: 1.4 }}>
+                  À l'adresse : <br />
+                  <span style={{ color: C.chocolate, fontWeight: 500 }}>8 rue Joseph Fortuné<br />56320 Le Faouët</span>
+                </div>
+                <div style={{ fontSize: '11px', color: C.bordeaux, marginTop: '6px', fontStyle: 'italic' }}>
+                  Aux horaires d'ouverture
+                </div>
+              </div>
+            </label>
+          </div>
+
+          {/* CALCULS FINAUX */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '28px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: C.muted }}>
               <span>Sous-total</span>
               <span>{totalPrice.toFixed(2)} €</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: C.muted }}>
-              <span>Livraison</span>
-              <span style={{ color: totalShippingCost > 0 ? C.chocolate : C.bordeaux }}>
-                {totalShippingCost > 0 ? `${totalShippingCost.toFixed(2)} €` : '0,00 €'}
+              <span>Frais de port</span>
+              <span style={{ color: totalShippingCost > 0 ? C.chocolate : C.bordeaux, fontWeight: totalShippingCost === 0 ? 600 : 400 }}>
+                {totalShippingCost > 0 ? `${totalShippingCost.toFixed(2)} €` : 'Offert'}
               </span>
             </div>
           </div>
-          <p style={{ fontSize: '12px', color: C.mutedLight, lineHeight: 1.6, marginBottom: '24px' }}>
-            Frais de livraison fixes de 5 € par commande. Expéditions à partir du lundi, sauf indisponibilité.
-          </p>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: `1px solid ${C.border}`, paddingTop: '20px', marginBottom: '28px' }}>
             <span style={{ fontSize: '13px', letterSpacing: '1px', textTransform: 'uppercase', color: C.chocolate }}>Total</span>
@@ -203,19 +242,8 @@ export default function Cart() {
           <p style={{ fontSize: '11px', color: C.mutedLight, textAlign: 'center', marginBottom: '14px', lineHeight: 1.5 }}>
             Paiement sécurisé par Stripe
           </p>
-          <Link to="/catalogue" style={{ display: 'block', textAlign: 'center', fontSize: '12px', letterSpacing: '1px', color: C.muted, textDecoration: 'underline' }}>
-            Continuer mes achats
-          </Link>
         </div>
       </div>
-
-      <div style={{ height: 'clamp(40px, 6vw, 64px)', background: C.bg }} aria-hidden />
-
-      <ProductRecommendations title="Complétez votre sélection" subtitle="Recommandations" excludeIds={cart.map((i) => i.id)} limit={4} separated />
-
-      <style>{`
-        @media (max-width: 700px) { .cart-grid { grid-template-columns: 1fr !important; } }
-      `}</style>
     </div>
     </>
   );
