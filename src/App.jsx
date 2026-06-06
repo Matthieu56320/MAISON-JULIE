@@ -2,7 +2,8 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { ProductsProvider } from './context/ProductsContext';
 import { CartProvider } from './context/CartContext';
-import { ConfigProvider } from './context/ConfigContext'; // 1. On importe le nouveau configurateur
+import { ConfigProvider } from './context/ConfigContext'; 
+import { AuthProvider } from './context/AuthContext'; // ✦ 1. Import de l'AuthProvider
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import Home from './pages/home';
@@ -14,6 +15,10 @@ import CheckoutSuccess from './pages/CheckoutSuccess';
 import Legal from './pages/Legal';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ReviewFormPage from './pages/ReviewFormPage';
+
+// ✦ Import de tes pages de compte (ajuste le nom des fichiers si besoin)
+import Account from './pages/Account'; 
+import Login from './pages/Login'; // ou Register.jsx selon ton organisation
 
 function AppShell() {
   const location = useLocation();
@@ -34,6 +39,10 @@ function AppShell() {
           <Route path="/cgv" element={<Legal type="cgv" />} />
           <Route path="/mentions-legales" element={<Legal type="mentions" />} />
           <Route path="/maison-julie-secret-dashboard" element={<AdminDashboard />} />
+          
+          {/* ✦ 2. Tes nouvelles routes d'authentification */}
+          <Route path="/mon-compte" element={<Account />} />
+          <Route path="/connexion" element={<Login />} />
         </Routes>
       </main>
       {!isAdmin && <Footer />}
@@ -46,9 +55,12 @@ function App() {
     <ConfigProvider>
       <ProductsProvider>
         <CartProvider>
-          <Router>
-            <AppShell />
-          </Router>
+          {/* ✦ 3. L'AuthProvider enveloppe TOUT le monde ici (surtout le Router et AppShell) */}
+          <AuthProvider>
+            <Router>
+              <AppShell />
+            </Router>
+          </AuthProvider>
         </CartProvider>
       </ProductsProvider>
     </ConfigProvider>
