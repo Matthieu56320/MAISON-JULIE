@@ -1,32 +1,14 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
-let transporter;
+// Initialisation du client Resend avec la clé d'API
+const resendKey = process.env.RESEND_API_KEY;
+let resend = null;
 
-function getTransporter() {
-  const gmailUser = process.env.GMAIL_USER;
-  const gmailPass = process.env.GMAIL_PASS;
-
-  if (!gmailUser || !gmailPass) {
-    console.warn('[emailService] Variables manquantes:', {
-      GMAIL_USER: gmailUser ? '✓' : '✗ MANQUANT',
-      GMAIL_PASS: gmailPass ? '✓' : '✗ MANQUANT',
-    });
-    return null;
-  }
-
-  if (!transporter) {
-    transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false, // STARTTLS
-      auth: {
-        user: gmailUser,
-        pass: gmailPass,
-      },
-    });
-    console.log('[emailService] Transporter Gmail créé pour', gmailUser);
-  }
-  return transporter;
+if (resendKey) {
+  resend = new Resend(resendKey);
+  console.log('[emailService] Client Resend initialisé avec succès');
+} else {
+  console.warn('[emailService] Variable RESEND_API_KEY manquante. Les envois de mails échoueront.');
 }
 
 // ── Styles partagés ────────────────────────────────────────────────────────────
@@ -141,8 +123,7 @@ function shippingAddressBlock(address) {
 
 export async function sendOrderConfirmation(order) {
   try {
-    const transport = getTransporter();
-    if (!transport || !order.customerEmail) {
+    if (!resend || !order.customerEmail) {
       console.warn('[emailService] Confirmation impossible — config ou email manquant');
       return false;
     }
@@ -182,12 +163,17 @@ export async function sendOrderConfirmation(order) {
       </div>
     `;
 
-    await transport.sendMail({
-      from: `"Maison Julie" <${process.env.GMAIL_USER}>`,
-      to: order.customerEmail,
+    const { error } = await resend.emails.send({
+      from: 'Maison Julie <contact@maison-julie.fr>', // ⚠️ À modifier si tu as un domaine personnalisé configuré sur Resend
+      to: [order.customerEmail],
       subject: `✦ Commande confirmée #${orderNum} — Maison Julie`,
       html,
     });
+
+    if (error) {
+      console.error('[emailService] Erreur Resend confirmation:', error);
+      return false;
+    }
 
     console.log(`[emailService] Confirmation envoyée à ${order.customerEmail}`);
     return true;
@@ -201,8 +187,7 @@ export async function sendOrderConfirmation(order) {
 
 export async function sendShippingNotification(order, trackingNumber) {
   try {
-    const transport = getTransporter();
-    if (!transport || !order.customerEmail) {
+    if (!resend || !order.customerEmail) {
       console.warn('[emailService] Expédition impossible — config ou email manquant');
       return false;
     }
@@ -262,12 +247,17 @@ export async function sendShippingNotification(order, trackingNumber) {
       </div>
     `;
 
-    await transport.sendMail({
-      from: `"Maison Julie" <${process.env.GMAIL_USER}>`,
-      to: order.customerEmail,
+    const { error } = await resend.emails.send({
+      from: 'Maison Julie <contact@maison-julie.fr>',
+      to: [order.customerEmail],
       subject: `📦 Votre colis est expédié #${orderNum} — Maison Julie`,
       html,
     });
+
+    if (error) {
+      console.error('[emailService] Erreur Resend expédition:', error);
+      return false;
+    }
 
     console.log(`[emailService] Notification d'expédition envoyée à ${order.customerEmail}`);
     return true;
@@ -281,8 +271,7 @@ export async function sendShippingNotification(order, trackingNumber) {
 
 export async function sendOrderStatusNotification(order, newStatus) {
   try {
-    const transport = getTransporter();
-    if (!transport || !order.customerEmail) return false;
+    if (!resend || !order.customerEmail) return false;
 
     const statusLabels = {
       pending:   { label: 'En attente de traitement', emoji: '⏳' },
@@ -328,12 +317,17 @@ export async function sendOrderStatusNotification(order, newStatus) {
       </div>
     `;
 
-    await transport.sendMail({
-      from: `"Maison Julie" <${process.env.GMAIL_USER}>`,
-      to: order.customerEmail,
+    const { error } = await resend.emails.send({
+      from: 'Maison Julie <contact@maison-julie.fr>',
+      to: [order.customerEmail],
       subject: `${s.emoji} Commande #${orderNum} — ${s.label}`,
       html,
     });
+
+    if (error) {
+      console.error('[emailService] Erreur Resend statut:', error);
+      return false;
+    }
 
     console.log(`[emailService] Statut "${newStatus}" envoyé à ${order.customerEmail}`);
     return true;
@@ -347,14 +341,13 @@ export async function sendOrderStatusNotification(order, newStatus) {
 
 export async function sendContactFormEmail(formData) {
   try {
-    const transport = getTransporter();
     const ownerEmail = process.env.OWNER_EMAIL;
-    if (!transport || !ownerEmail) return false;
+    if (!resend || !ownerEmail) return false;
 
-    await transport.sendMail({
-      from: `"Maison Julie" <${process.env.GMAIL_USER}>`,
-      to: ownerEmail,
-      replyTo: formData.email,
+    const { error } = await resend.emails.send({
+      from: 'Maison Julie <contact@maison-julie.fr>',
+      to: [ownerEmail],
+      replyTo: formData.email, // Permet à ta sœur de répondre directement au client en cliquant sur "Répondre"
       subject: `Nouveau message de contact — ${formData.name}`,
       html: `
         <div style="${emailBase}">
@@ -369,6 +362,11 @@ export async function sendContactFormEmail(formData) {
         </div>
       `,
     });
+
+    if (error) {
+      console.error('[emailService] Erreur Resend contact:', error);
+      return false;
+    }
 
     console.log(`[emailService] Contact de ${formData.email}`);
     return true;
