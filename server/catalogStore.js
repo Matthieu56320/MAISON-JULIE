@@ -1,10 +1,7 @@
-import fs from 'fs/promises';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { getFirestore } from 'firebase-admin/firestore';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const storagePath = path.join(__dirname, 'data');
-const storageFile = path.join(storagePath, 'catalog.json');
+const COLLECTION = 'config';
+const DOC_ID = 'catalog';
 
 const defaultCatalog = {
   products: [
@@ -71,7 +68,7 @@ const defaultCatalog = {
       bestseller: true,
       bestsellerRank: 4,
       isNew: true,
-      description: "Puces dorées minimalistes, légères et discrètes. En acier inoxydable plaqué or, elles conviennent aux peaux sensibles. Diamètre 8 mm.",
+      description: 'Puces dorées minimalistes, légères et discrètes. En acier inoxydable plaqué or, elles conviennent aux peaux sensibles. Diamètre 8 mm.',
       images: [
         'https://images.unsplash.com/photo-1617038220319-276d3cfab638?w=800&q=80',
       ],
@@ -116,31 +113,33 @@ const defaultCatalog = {
 
 export async function loadCatalog() {
   try {
-    const raw = await fs.readFile(storageFile, 'utf8');
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed.products) || !Array.isArray(parsed.collections)) {
+    const db = getFirestore();
+    const snap = await db.collection(COLLECTION).doc(DOC_ID).get();
+    if (!snap.exists) return defaultCatalog;
+
+    const data = snap.data();
+    if (!Array.isArray(data.products) || !Array.isArray(data.collections)) {
       return defaultCatalog;
     }
-    return {
-      products: parsed.products,
-      collections: parsed.collections,
-    };
-  } catch {
+    return { products: data.products, collections: data.collections };
+  } catch (err) {
+    console.error('[catalogStore] loadCatalog error:', err);
     return defaultCatalog;
   }
 }
 
 export async function saveCatalog(catalog) {
   try {
-    await fs.mkdir(storagePath, { recursive: true });
+    const db = getFirestore();
     const data = {
       products: Array.isArray(catalog.products) ? catalog.products : [],
       collections: Array.isArray(catalog.collections) ? catalog.collections : [],
+      updatedAt: new Date().toISOString(),
     };
-    await fs.writeFile(storageFile, JSON.stringify(data, null, 2), 'utf8');
+    await db.collection(COLLECTION).doc(DOC_ID).set(data);
     return true;
   } catch (err) {
-    console.error('[catalogStore] save error', err);
+    console.error('[catalogStore] saveCatalog error:', err);
     throw err;
   }
 }
