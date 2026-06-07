@@ -122,14 +122,11 @@ function loadStoredCatalog() {
     if (!raw) return null;
     const data = JSON.parse(raw);
     if (!Array.isArray(data.products) || !Array.isArray(data.collections)) return null;
-    
-    // Normaliser les produits pour ajouter les champs manquants
     const normalizedProducts = data.products.map(p => ({
       ...p,
       shippingCost: typeof p.shippingCost === 'number' ? p.shippingCost : 0,
       showShippingPrice: typeof p.showShippingPrice === 'boolean' ? p.showShippingPrice : true,
     }));
-    
     return {
       products: normalizedProducts,
       collections: data.collections,
@@ -181,34 +178,39 @@ async function persistCatalogRemotely(products, collections) {
   }
 }
 
-const stored = typeof window !== 'undefined' ? loadStoredCatalog() : null;
+// ── SUPPRIMÉ : plus de lecture localStorage au chargement du module ──
+// Le serveur (Firestore) est toujours la source de vérité.
 
 const ProductsContext = createContext(null);
 
 export function ProductsProvider({ children }) {
-  const [products, setProducts] = useState(stored?.products ?? initialProducts);
-  const [collections, setCollections] = useState(stored?.collections ?? initialCollections);
-  const [hydrated, setHydrated] = useState(!!stored);
+  // On démarre avec les données initiales, le fetch serveur va les remplacer immédiatement
+  const [products, setProducts] = useState(initialProducts);
+  const [collections, setCollections] = useState(initialCollections);
+  const [hydrated, setHydrated] = useState(false); // toujours false au démarrage → fetch systématique
 
+  // Chargement au démarrage : serveur en priorité, localStorage en fallback
   useEffect(() => {
-    if (!hydrated) {
-      (async () => {
-        const remote = await loadRemoteCatalog();
-        if (remote) {
-          setProducts(remote.products);
-          setCollections(remote.collections);
-        } else {
-          const saved = loadStoredCatalog();
-          if (saved) {
-            setProducts(saved.products);
-            setCollections(saved.collections);
-          }
+    (async () => {
+      const remote = await loadRemoteCatalog();
+      if (remote) {
+        setProducts(remote.products);
+        setCollections(remote.collections);
+        // Met à jour localStorage avec les données fraîches du serveur
+        persistCatalogLocally(remote.products, remote.collections);
+      } else {
+        // Firestore indisponible → fallback localStorage
+        const saved = loadStoredCatalog();
+        if (saved) {
+          setProducts(saved.products);
+          setCollections(saved.collections);
         }
-        setHydrated(true);
-      })();
-    }
-  }, [hydrated]);
+      }
+      setHydrated(true);
+    })();
+  }, []); // s'exécute une seule fois au montage
 
+  // Sauvegarde distante uniquement quand ta sœur modifie le catalogue (admin connecté)
   useEffect(() => {
     if (hydrated) {
       persistCatalogLocally(products, collections);
