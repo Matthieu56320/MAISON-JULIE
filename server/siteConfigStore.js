@@ -1,30 +1,30 @@
-import fs from 'fs/promises';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { getFirestore } from 'firebase-admin/firestore';
 import { defaultSiteConfig } from '../src/config/defaultSiteConfig.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const storagePath = path.join(__dirname, 'data');
-const storageFile = path.join(storagePath, 'siteConfig.json');
+const COLLECTION = 'config';
+const DOC_ID = 'siteConfig';
 
 export async function loadSiteConfig() {
   try {
-    const raw = await fs.readFile(storageFile, 'utf8');
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return defaultSiteConfig;
-    return parsed;
-  } catch {
+    const db = getFirestore();
+    const snap = await db.collection(COLLECTION).doc(DOC_ID).get();
+    if (!snap.exists) return defaultSiteConfig;
+    const data = snap.data();
+    if (!data || typeof data !== 'object') return defaultSiteConfig;
+    return data;
+  } catch (err) {
+    console.error('[siteConfigStore] loadSiteConfig error:', err);
     return defaultSiteConfig;
   }
 }
 
 export async function saveSiteConfig(config) {
   try {
-    await fs.mkdir(storagePath, { recursive: true });
-    await fs.writeFile(storageFile, JSON.stringify(config, null, 2), 'utf8');
+    const db = getFirestore();
+    await db.collection(COLLECTION).doc(DOC_ID).set(config);
     return true;
   } catch (err) {
-    console.error('[siteConfigStore] save error', err);
+    console.error('[siteConfigStore] saveSiteConfig error:', err);
     throw err;
   }
 }
