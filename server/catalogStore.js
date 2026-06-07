@@ -1,7 +1,29 @@
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
 const COLLECTION = 'config';
 const DOC_ID = 'catalog';
+
+function getAdminDb() {
+  try {
+    if (!getApps().length) {
+      const privateKey = process.env.FIREBASE_PRIVATE_KEY_BASE64
+        ? Buffer.from(process.env.FIREBASE_PRIVATE_KEY_BASE64, 'base64').toString('utf8')
+        : process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+      initializeApp({
+        credential: cert({
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+          privateKey,
+        }),
+      });
+    }
+    return getFirestore();
+  } catch (err) {
+    console.warn('[catalogStore] Firebase Admin non initialisé:', err.message);
+    return null;
+  }
+}
 
 const defaultCatalog = {
   products: [
@@ -112,22 +134,27 @@ const defaultCatalog = {
 };
 
 export async function loadCatalog() {
+  const db = getAdminDb();
+  if (!db) {
+    console.warn('[catalogStore] Firestore indisponible, retour catalogue par défaut');
+    return defaultCatalog;
+  }
   try {
-    const db = getFirestore();
     const snap = await db.collection(COLLECTION).doc(DOC_ID).get();
     if (!snap.exists) return defaultCatalog;
     const data = snap.data();
     if (!Array.isArray(data.products) || !Array.isArray(data.collections)) return defaultCatalog;
     return { products: data.products, collections: data.collections };
   } catch (err) {
-    console.error('[catalogStore] loadCatalog error:', err);
+    console.error('[catalogStore] loadCatalog error:', err.message);
     return defaultCatalog;
   }
 }
 
 export async function saveCatalog(catalog) {
+  const db = getAdminDb();
+  if (!db) throw new Error('Firestore indisponible');
   try {
-    const db = getFirestore();
     await db.collection(COLLECTION).doc(DOC_ID).set({
       products: Array.isArray(catalog.products) ? catalog.products : [],
       collections: Array.isArray(catalog.collections) ? catalog.collections : [],
@@ -135,7 +162,7 @@ export async function saveCatalog(catalog) {
     });
     return true;
   } catch (err) {
-    console.error('[catalogStore] saveCatalog error:', err);
+    console.error('[catalogStore] saveCatalog error:', err.message);
     throw err;
   }
 }
