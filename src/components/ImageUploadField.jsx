@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { processImageFile } from '../utils/compressImage';
+
+const WORKER_URL = 'https://maison-julie-upload-worker.matthieumartelon41.workers.dev';
 
 const zoneStyle = {
   border: '2px dashed #D4C4B0',
@@ -26,18 +27,37 @@ export default function ImageUploadField({
 
   const handleFile = async (file) => {
     if (!file || disabled) return;
+
+    // Vérification type
+    if (!file.type.startsWith('image/')) {
+      onError?.('Choisissez une image (JPG, PNG, WebP…).');
+      return;
+    }
+    // Vérification taille (max 15 Mo)
+    if (file.size > 15 * 1024 * 1024) {
+      onError?.('Image trop lourde (max. 15 Mo).');
+      return;
+    }
+
     setLoading(true);
     try {
-      const compressed = await processImageFile(file);
-      onChange(compressed);
-    } catch (err) {
-      if (err.message === 'NOT_IMAGE') {
-        onError?.('Choisissez une image (JPG, PNG, WebP…).');
-      } else if (err.message === 'TOO_LARGE') {
-        onError?.('Image trop lourde (max. 15 Mo).');
-      } else {
-        onError?.('Impossible de charger cette image.');
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch(WORKER_URL, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Erreur serveur ${res.status}`);
       }
+
+      const { url } = await res.json();
+      onChange(url);
+    } catch (err) {
+      onError?.('Impossible d\'uploader cette image : ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -114,7 +134,7 @@ export default function ImageUploadField({
               }}
             />
             <p style={{ fontSize: '13px', color: '#56352c', marginBottom: '6px', fontWeight: 500 }}>
-              {loading ? 'Chargement…' : 'Importer une photo'}
+              {loading ? 'Upload en cours…' : 'Importer une photo'}
             </p>
             <p style={{ fontSize: '12px', color: '#A89488', lineHeight: 1.5 }}>
               Depuis votre ordinateur ou votre téléphone
